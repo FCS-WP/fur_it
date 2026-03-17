@@ -1,0 +1,21 @@
+#zippy-settings {
+  overflow: hidden;
+  padding: 25px 10px;
+  .zippy-settings-content {
+    background: #fff;
+    padding: 35px 0px;
+    margin-top: 20px;
+    @include tablet {
+      padding: 75px 0px;
+    }
+  }
+}
+.zippy-submit-button {
+ margin-top: 20px !important;
+  border-radius: .25rem !important;
+}
+
+#woocommerce_customize {
+  background: #fff;
+  padding: 35px 0px;
+}

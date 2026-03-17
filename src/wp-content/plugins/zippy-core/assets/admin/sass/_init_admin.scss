@@ -1,0 +1,116 @@
+html {
+  margin: 0px !important;
+}
+body.woocommerce_page_admin-page-wc-zippy-dashboard,
+body.settings_page_zippy-setting {
+  margin: 0px !important;
+  padding: 0 !important;
+  max-width: none !important;
+  border: 0px !important;
+}
+#zippy-root {
+  @import "bootstrap/scss/bootstrap";
+}
+#zippy-root {
+
+  #zippy-authentication,
+  #zippy-main {
+    position: relative;
+    margin-left: -20px;
+    margin-top: 20px;
+  }
+
+  #zippy-content {
+    padding: 0 20px;
+    .card {
+      max-width: none;
+      padding: 0;
+    }
+  }
+  #woocommerce-embedded-root {
+    position: absolute;
+    h1 {
+      font-size: 1.2em;
+    }
+  }
+  .date-filter-button {
+    border: 1px solid #dae0e5;
+    .btn {
+      background: transparent;
+      padding: 10px 20px;
+      &.active {
+        border-color: #007cba !important;
+        color: #007cba !important;
+        background-color: transparent !important;
+      }
+    }
+    .btn:focus,
+    .btn:hover {
+      background: none;
+      box-shadow: none !important;
+      border-radius: 0px;
+      border-color: #007cba;
+      color: #007cba;
+    }
+  }
+  .reportFilter {
+    border: 1px solid #dae0e5;
+    margin-bottom: 15px;
+    @include tablet {
+      margin-bottom: -2px;
+    }
+    .date-picker {
+      margin-top: 15px;
+      @include tablet {
+        margin-top: 0;
+      }
+    }
+    .date-filter-button {
+      border: none;
+      width: 100%;
+      @include tablet {
+        width: auto;
+      }
+      .btn {
+        padding: 12px 20px;
+        font-size: 14px;
+        color: #007cba !important;
+        font-weight: bold;
+        border: none;
+        border-right: 1px solid #dae0e5;
+        &:nth-child(2) {
+          border-right: 0px !important;
+        }
+        &:last-child {
+          border-right: 0px !important;
+        }
+        &.go-btn.btn-success {
+          border: 1px solid #007cba !important;
+          padding: 5px 10px !important;
+          border-radius: 8px !important;
+        }
+        &.active {
+          border-color: #fff !important;
+          color: #007cba !important;
+          background-color: #fff !important;
+        }
+      }
+    }
+    .select-bage {
+      cursor: pointer;
+      font-size: 14px !important;
+      margin: 0px;
+    }
+    .close-btn {
+      margin-bottom: 4px;
+      font-size: 16px;
+    }
+  }
+  .right-chart {
+    margin-top: 15px;
+    @include tablet {
+      margin-top: 0;
+    }
+  }
+}
+

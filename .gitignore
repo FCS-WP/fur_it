@@ -1,0 +1,36 @@
+# Ignore thir-party
+package-lock.json
+
+node_modules
+
+src/wp-content/themes/*/*/dist
+
+
+# Ignore large folder and folder cache
+src/wp-content/*
+
+# wp-content/uploads
+!src/wp-content/themes
+
+!src/wp-content/plugins
+
+!src/wp-content/.htaccess
+
+!src/wp-content/index.php
+
+# Ignore plugins default
+src/wp-content/plugins/akismet
+
+src/wp-content/plugins/hello.php
+
+# Ignore themes default
+src/wp-content/themes/twentytwentyone
+
+src/wp-content/themes/twentytwentytwo
+
+src/wp-content/themes/twentytwentythree
+
+src/wp-content/themes/twentytwentyfive
+
+# Ignore docker file
+.env

@@ -1,0 +1,59 @@
+.custom-checkout-container {
+    display: flex;
+    flex-wrap: wrap;
+    .customer-infos {
+        width: 60%;
+        padding-right: 40px;
+    }
+    .order-infos {
+        width: 40%;
+    }
+    @media (max-width: 768px) {
+        .order-infos, .customer-infos {
+            width: 100%;
+        }
+        .customer-infos {
+            padding-right: 0;
+        }
+    }
+}
+// Cart Page
+.woocommerce-cart-form {
+    th {
+        color: var(--e-global-color-primary);
+    }
+    #coupon_code {
+        min-width: 150px !important;
+    }
+}
+
+.cart_totals {
+    .shop_table, .checkout-button {
+        border-radius: 0 !important;
+    }
+    .shop_table {
+        th {
+            color: var(--e-global-color-primary);
+        }
+        bdi {
+             color: var(--e-global-color-accent);
+        }
+    }
+}
+// checkout page
+
+.place-order button { 
+    width: 100%;
+    border-radius: 0 !important;
+}
+
+.order-infos { 
+    table {
+        th {
+            color: var(--e-global-color-primary);
+        }
+        td.product-name, bdi {
+             color: var(--e-global-color-accent);
+        }
+    }
+}
