@@ -1,0 +1,151 @@
+.zippy-contact-form-wrap {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+// ── Notice ──
+.zippy-cf-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    margin-bottom: 24px;
+
+    ul { margin: 0; padding-left: 16px; }
+    li { margin-bottom: 4px; }
+
+    &--success {
+        background: #f0faf0;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+    }
+    &--error {
+        background: #fff5f5;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+    }
+}
+
+// ── Form Layout ──
+.zippy-contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.zippy-cf-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+
+    @media (max-width: 549px) {
+        grid-template-columns: 1fr;
+    }
+
+    &--submit {
+        grid-template-columns: 1fr;
+    }
+}
+
+// ── Fields ──
+.zippy-cf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    &--full {
+        grid-column: 1 / -1;
+    }
+
+    label {
+        font-weight: 700;
+        color: $primary-color;
+    }
+
+    input,
+    textarea {
+        margin-bottom: 0;
+        width: 100%;
+        padding: 12px 16px !important;
+        border: 1px solid #ddd;
+        border-radius: 20px !important;
+        color: $primary-color;
+        background: #fff;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        box-sizing: border-box;
+        font-family: inherit;
+
+        &::placeholder { color: #aaa; }
+
+        &:focus {
+            outline: none;
+            border-color: $fs-color-success;
+            box-shadow: 0 0 0 3px rgba(191, 172, 145, 0.15);
+        }
+    }
+
+    textarea { resize: vertical; min-height: 140px; }
+}
+
+// ── Labels ──
+.zippy-cf-required {
+    color: #e53935;
+    margin-left: 2px;
+}
+.zippy-cf-optional {
+    color: #aaa;
+    font-weight: 400;
+    font-size: 14px;
+    margin-left: 4px;
+}
+
+// ── Submit button ──
+.zippy-cf-submit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: $primary-color;
+    color: #fff;
+    border: none;
+    border-radius: 99px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+    font-family: inherit;
+    width: 200px;
+
+    &:hover {
+        background: $fs-color-success;
+        transform: translateY(-1px);
+    }
+    &:active { transform: translateY(0); }
+}
+// Field error state
+.zippy-cf-field {
+    &--error {
+        input, textarea {
+            border-color: #e53935 !important;
+            box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.1) !important;
+        }
+    }
+}
+
+.zippy-cf-field-error {
+    display: block;
+    font-size: 13px;
+    color: #e53935;
+    margin-top: 4px;
+}
+
+// Char counter
+.zippy-cf-char-count {
+    font-size: 12px;
+    color: #aaa;
+    text-align: right;
+    margin-top: 4px;
+    display: block;
+
+    &--warn { color: #e53935; }
+}

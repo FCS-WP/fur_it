@@ -1,0 +1,46 @@
+.zippy-breadcrumb {
+    width: 100%;
+
+    &__list {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        gap: 6px;
+    }
+
+    &__item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        a {
+            text-decoration: none;
+            transition: color 0.2s ease;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+
+        // Current page — not a link
+        &--active span {
+            font-weight: 500;
+            pointer-events: none;
+        }
+    }
+
+    &__sep {
+        opacity: 0.4;
+        font-size: 0.85em;
+        user-select: none;
+    }
+}
+
+.center-breadcrumb {
+    .zippy-breadcrumb__list {
+        justify-content: center;
+    }
+}

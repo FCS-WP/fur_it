@@ -1,0 +1,441 @@
+$primary-color : var(--primary-color);
+$fs-color-primary : var(--fs-color-primary);
+$fs-color-secondary : var(--fs-color-secondary);
+$fs-color-success : var(--fs-color-success);
+$fs-color-alert : var(--fs-color-alert);
+$link-color : var(--fs-experimental-link-color);
+$link-color-hover : var(--fs-experimental-link-color-hover);
+$default-text-color: #191919;
+$white: #fff;
+
+.body {
+    font-family: 'Cormorant Garamond', sans-serif;
+    font-size: 1.2em;
+}
+
+.header-main {
+    border-bottom: 1px solid $fs-color-success;
+}
+
+.header-wrapper {
+    #logo img {
+        object-fit: cover;
+        width: 100%;
+    }
+
+    .header-button-1 .button {
+        background-color: $fs-color-success;
+        border: 0;
+        color: $white;
+
+        &:hover {
+            background-color: $fs-color-secondary;
+        }
+    }
+
+    .header-nav-main.nav-left {
+        justify-content: center !important;
+    }
+}
+
+.custom-banner-text {
+    display: flex;
+    justify-content: center;
+    font-size: 1.5rem;
+
+    p {
+        max-width: 36%;
+
+        @media (max-width: 1024px) {
+            max-width: 50%;
+        }
+
+        @media (max-width: 628px) {
+            max-width: 70%;
+        }
+    }
+}
+
+.custom-review-box {
+    color: $default-text-color;
+    padding: 30px 20px 20px;
+    border-radius: 20px;
+    position: relative;
+    z-index: 999;
+    width: 100%;
+    max-width: 300px;
+    background-color: $white;
+
+    &.bg-success {
+        background: var(--fs-color-success);
+        color: $white;
+
+        .box-title,
+        .box-sub-title {
+            color: $white;
+        }
+        .box-text {
+            padding-bottom: 0;
+            text-align: center;
+        }
+    }
+
+    .float-icon {
+        position: absolute;
+        z-index: 9999;
+        top: -30px;
+        left: 30px;
+        img {
+            width: 50px;
+        }
+    }
+
+    .box-title,
+    .box-sub-title {
+        text-align: center;
+    }
+    .box-content {
+        display: flex;
+        height: 100%;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+}
+.float-testimonial {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+}
+.rounded {
+    border-radius: 20px;
+    * {
+        border-radius: 20px;
+    }
+}
+.text-dark *{
+    color: $fs-color-primary !important;
+}
+
+.zippy-service-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background-color: #fff;
+    border-radius: 16px;
+    height: 100%;
+    padding: 28px 24px;
+    min-height: 220px;
+
+    // ── Light variant (white card, colored title) ──
+    &--light {
+        background-color: #ffffff;
+
+        .zippy-service-card__title {
+            color: $fs-color-success;   // #bfac91
+            font-weight: 700;
+            font-size: 28px;
+        }
+
+        .zippy-service-card__btn {
+            background-color: $fs-color-secondary;
+            border: 1px solid #ddd;
+            color: $primary-color;
+
+            &:hover {
+                background-color: $fs-color-success;  // #e9e0d1
+                border-color: $fs-color-success;
+            }
+        }
+    }
+
+    // ── Dark variant (beige card, bold title) ──
+    &--dark {
+        background-color: $fs-color-secondary;   // #e9e0d1
+
+        .zippy-service-card__title {
+            color: $primary-color;   // #191919
+            text-align: center;
+            font-weight: 700;
+            font-size: 28px;
+        }
+
+        .zippy-service-card__btn {
+            background-color: $fs-color-success;
+            border: none;
+            color: $fs-color-primary;
+
+            &:hover {
+                background-color: $primary-color;
+                color: #fff;
+            }
+        }
+    }
+
+    // ── Header (icon + title) ──
+    &__header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    &__icon {
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+    }
+
+    &__title {
+        margin: 0;
+        font-size: 20px;
+    }
+
+    // ── Body ──
+    &__body {
+        flex: 1;
+    }
+
+    &__text {
+        font-size: 18px;
+        line-height: 1.6;
+        color: $default-text-color;
+        margin: 0;
+    }
+
+    // ── Footer button ──
+    &__footer {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    &__btn {
+        display: inline-block;
+        padding: 0.3rem 1.2em;
+        line-height: 1.6rem;
+        border-radius: 20px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+}
+
+.mt-30px {
+    margin-top: 30px;
+}
+
+.zippy-products-wrapper {
+    width: 100%;
+}
+
+// ── Grid ──
+.zippy-products-grid {
+    display: grid;
+    gap: 2.5rem;
+    width: 100%;
+}
+
+// ── Card ──
+.zippy-product-card {
+    border-radius: 16px;
+    overflow: hidden;
+    background-color: $fs-color-secondary;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    // ── Image ──
+    &__image-wrap {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        overflow: hidden;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        &:hover img {
+            transform: scale(1.04);
+        }
+    }
+
+    &__no-image {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        // background-color: darken($fs-color-secondary, 5%);
+    }
+
+    // ── Info bar ──
+    &__info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background-color: $fs-color-secondary;
+        border-radius: 0 0 16px 16px;
+    }
+
+    &__title {
+        font-size: 20px;
+        color: $primary-color;
+        font-weight: 600;
+    }
+
+    &__price {
+        font-size: 20px;
+        color: $primary-color;
+        font-weight: 600;
+
+        // WooCommerce price HTML
+        .woocommerce-Price-amount {
+            color: $primary-color;
+        }
+
+        del {
+            color: #aaa;
+            font-size: 12px;
+            margin-right: 4px;
+        }
+    }
+    .zippy-product-card__price del {
+        color: $default-text-color !important;
+        font-size: 1.2rem;
+    }
+}
+
+// ── Footer button ──
+.zippy-products-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 28px;
+}
+
+.zippy-products-btn {
+    display: inline-block;
+    padding: 12px 36px;
+    border-radius: 50px;
+    border: 1px solid $primary-color;
+    color: $primary-color;
+    font-size: 14px;
+    text-decoration: none;
+    background: transparent;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: $primary-color;
+        color: #fff;
+    }
+}
+
+.bg-section {
+    background-color: $fs-color-secondary;
+    border-radius: 20px;
+    padding: 30px;
+}
+
+.p-0{
+    padding: 0 !important;
+}
+
+.zippy-menu-wrap {
+    width: 100%;
+
+    .zippy-menu {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+
+        li {
+            position: relative;
+            margin: 0;
+
+            a {
+                text-decoration: none;
+                white-space: nowrap;
+            }
+
+            // Active state
+            &.current-menu-item > a,
+            &.current-menu-ancestor > a {
+                font-weight: 600;
+            }
+        }
+    }
+
+    // ── Horizontal specific ──
+    &.zippy-menu--horizontal {
+        .zippy-menu {
+            flex-wrap: wrap;
+        }
+    }
+
+    // ── Vertical specific ──
+    &.zippy-menu--vertical {
+        .zippy-menu li a {
+            display: block;
+            width: 100%;
+        }
+    }
+}
+.absolute-footer {
+    display: none;
+}
+
+.h-full .col-inner {
+    height: 100%;
+}
+.ppocta-ft-fix {
+    position: fixed;
+    bottom: 60px;
+    z-index: 99999999;
+    right: 1rem;
+}
+
+#whatsappButton {
+    display: inline-block;
+    position: relative;
+    width: 50px;
+    height: 50px;
+    line-height: 50px;
+    border-radius: 100%;
+    background: url("/wp-content/uploads/2026/03/whatsapp-icon-2.svg") center center no-repeat;
+    background-size: 100%;
+}
+a#whatsappButton {outline:none; }
+a#whatsappButton:hover {
+    text-decoration:none;
+    background: url("/wp-content/uploads/2026/03/whatsapp-icon-2.svg") center center no-repeat;
+    background-size: 100%;
+}
+a#whatsappButton span {
+    z-index: 10;
+    display: none;
+    padding: 10px;
+    right: 56px;
+    width: 240px;
+    line-height: 16px;
+    border-radius: 4px;
+    box-shadow: 5px 5px 8px #CCC;
+}
+a#whatsappButton:hover span {
+    display:inline; position:absolute; color:#111;
+    border:1px solid #DCA; background:#fffAF0;
+}
+
+@media (max-width: 1024px) {
+    .section .p-0 {
+        padding: 10px !important;
+    }
+}
+
+.h-250 {
+    height: 250px;
+    border-left:  1px solid $default-text-color;
+}
