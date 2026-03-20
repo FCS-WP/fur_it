@@ -10,6 +10,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
+use Automattic\WooCommerce\Enums\OrderInternalStatus;
 use Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController;
 use Automattic\WooCommerce\Admin\Features\Features;
 
@@ -211,6 +212,35 @@ class WC_Post_Types {
 			)
 		);
 
+		register_taxonomy(
+			'pos_product_visibility',
+			/**
+			 * Filter the post types that the POS product visibility taxonomy is attached to.
+			 *
+			 * @since 10.5.0
+			 * @param array $post_types Array of post types.
+			 */
+			apply_filters( 'woocommerce_taxonomy_objects_pos_product_visibility', array( 'product', 'product_variation' ) ),
+			/**
+			 * Filter the arguments for the POS product visibility taxonomy.
+			 *
+			 * @since 10.5.0
+			 * @param array $args Array of taxonomy arguments.
+			 */
+			apply_filters(
+				'woocommerce_taxonomy_args_pos_product_visibility',
+				array(
+					'hierarchical'      => false,
+					'show_ui'           => false,
+					'show_in_nav_menus' => false,
+					'query_var'         => false,
+					'rewrite'           => false,
+					'public'            => false,
+					'label'             => _x( 'POS Product visibility', 'Taxonomy name', 'woocommerce' ),
+				)
+			)
+		);
+
 		global $wc_product_attributes;
 
 		$wc_product_attributes = array();
@@ -372,7 +402,7 @@ class WC_Post_Types {
 			)
 		);
 
-		// Register the product form post type wne the feature is enabled.
+		// Register the product form post type when the feature is enabled.
 		if ( Features::is_enabled( 'product-editor-template-system' ) ) {
 			register_post_type(
 				'product_form',
@@ -630,7 +660,7 @@ class WC_Post_Types {
 		$order_statuses = apply_filters(
 			'woocommerce_register_shop_order_post_statuses',
 			array(
-				'wc-pending'    => array(
+				OrderInternalStatus::PENDING    => array(
 					'label'                     => _x( 'Pending payment', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -639,7 +669,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Pending payment <span class="count">(%s)</span>', 'Pending payment <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-processing' => array(
+				OrderInternalStatus::PROCESSING => array(
 					'label'                     => _x( 'Processing', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -648,7 +678,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Processing <span class="count">(%s)</span>', 'Processing <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-on-hold'    => array(
+				OrderInternalStatus::ON_HOLD    => array(
 					'label'                     => _x( 'On hold', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -657,7 +687,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'On hold <span class="count">(%s)</span>', 'On hold <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-completed'  => array(
+				OrderInternalStatus::COMPLETED  => array(
 					'label'                     => _x( 'Completed', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -666,7 +696,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Completed <span class="count">(%s)</span>', 'Completed <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-cancelled'  => array(
+				OrderInternalStatus::CANCELLED  => array(
 					'label'                     => _x( 'Cancelled', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -675,7 +705,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Cancelled <span class="count">(%s)</span>', 'Cancelled <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-refunded'   => array(
+				OrderInternalStatus::REFUNDED   => array(
 					'label'                     => _x( 'Refunded', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,
@@ -684,7 +714,7 @@ class WC_Post_Types {
 					/* translators: %s: number of orders */
 					'label_count'               => _n_noop( 'Refunded <span class="count">(%s)</span>', 'Refunded <span class="count">(%s)</span>', 'woocommerce' ),
 				),
-				'wc-failed'     => array(
+				OrderInternalStatus::FAILED     => array(
 					'label'                     => _x( 'Failed', 'Order status', 'woocommerce' ),
 					'public'                    => false,
 					'exclude_from_search'       => false,

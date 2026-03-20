@@ -11,6 +11,8 @@
 defined( 'ABSPATH' ) || exit;
 
 use Automattic\WooCommerce\Checkout\Helpers\ReserveStock;
+use Automattic\WooCommerce\Enums\ProductType;
+use Automattic\WooCommerce\Internal\Orders\OrderNoteGroup;
 
 /**
  * Update a product's stock amount.
@@ -41,7 +43,7 @@ function wc_update_product_stock( $product, $stock_quantity = null, $operation =
 		$data_store            = WC_Data_Store::load( 'product' );
 
 		// Fire actions to let 3rd parties know the stock is about to be changed.
-		if ( $product_with_stock->is_type( 'variation' ) ) {
+		if ( $product_with_stock->is_type( ProductType::VARIATION ) ) {
 			// phpcs:disable WooCommerce.Commenting.CommentHooks.MissingSinceComment
 			/** This action is documented in includes/data-stores/class-wc-product-data-store-cpt.php */
 			do_action( 'woocommerce_variation_before_set_stock', $product_with_stock );
@@ -63,7 +65,7 @@ function wc_update_product_stock( $product, $stock_quantity = null, $operation =
 		}
 
 		// Fire actions to let 3rd parties know the stock changed.
-		if ( $product_with_stock->is_type( 'variation' ) ) {
+		if ( $product_with_stock->is_type( ProductType::VARIATION ) ) {
 			// phpcs:disable WooCommerce.Commenting.CommentHooks.MissingSinceComment
 			/** This action is documented in includes/data-stores/class-wc-product-data-store-cpt.php */
 			do_action( 'woocommerce_variation_set_stock', $product_with_stock );
@@ -195,12 +197,12 @@ function wc_reduce_stock_levels( $order_id ) {
 		 * @param WC_Order_Item_Product $item Order item data.
 		 */
 		$qty       = apply_filters( 'woocommerce_order_item_quantity', $item->get_quantity(), $order, $item );
-		$item_name = $product->get_formatted_name();
+		$item_name = $product->get_name();
 		$new_stock = wc_update_product_stock( $product, $qty, 'decrease' );
 
 		if ( is_wp_error( $new_stock ) ) {
 			/* translators: %s item name. */
-			$order->add_order_note( sprintf( __( 'Unable to reduce stock for item %s.', 'woocommerce' ), $item_name ) );
+			$order->add_order_note( sprintf( __( 'Unable to reduce stock for item %s.', 'woocommerce' ), $item_name ), false, false, array( 'note_group' => OrderNoteGroup::ERROR ) );
 			continue;
 		}
 
@@ -246,7 +248,7 @@ function wc_trigger_stock_change_notifications( $order, $changes ) {
 	$no_stock_amount = absint( get_option( 'woocommerce_notify_no_stock_amount', 0 ) );
 
 	foreach ( $changes as $change ) {
-		$order_notes[]    = $change['product']->get_formatted_name() . ' ' . $change['from'] . '&rarr;' . $change['to'];
+		$order_notes[]    = $change['product']->get_name() . ' (' . $change['from'] . '&rarr;' . $change['to'] . ')';
 		$low_stock_amount = absint( wc_get_low_stock_amount( wc_get_product( $change['product']->get_id() ) ) );
 		if ( $change['to'] <= $no_stock_amount ) {
 			/**
@@ -291,7 +293,7 @@ function wc_trigger_stock_change_notifications( $order, $changes ) {
 		}
 	}
 
-	$order->add_order_note( __( 'Stock levels reduced:', 'woocommerce' ) . ' ' . implode( ', ', $order_notes ) );
+	$order->add_order_note( __( 'Stock levels reduced:', 'woocommerce' ) . ' ' . implode( ', ', $order_notes ), false, false, array( 'note_group' => OrderNoteGroup::PRODUCT_STOCK ) );
 }
 
 /**
@@ -369,20 +371,20 @@ function wc_increase_stock_levels( $order_id ) {
 			continue;
 		}
 
-		$item_name = $product->get_formatted_name();
+		$item_name = $product->get_name();
 		$new_stock = wc_update_product_stock( $product, $item_stock_reduced, 'increase' );
 		$old_stock = $new_stock - $item_stock_reduced;
 
 		if ( is_wp_error( $new_stock ) ) {
 			/* translators: %s item name. */
-			$order->add_order_note( sprintf( __( 'Unable to restore stock for item %s.', 'woocommerce' ), $item_name ) );
+			$order->add_order_note( sprintf( __( 'Unable to restore stock for item %s.', 'woocommerce' ), $item_name ), false, false, array( 'note_group' => OrderNoteGroup::ERROR ) );
 			continue;
 		}
 
 		$item->delete_meta_data( '_reduced_stock' );
 		$item->save();
 
-		$changes[] = $item_name . ' ' . $old_stock . '&rarr;' . $new_stock;
+		$changes[] = $item_name . ' (' . $old_stock . '&rarr;' . $new_stock . ')';
 
 		/**
 		 * Fires when stock restored to a specific line item
@@ -397,7 +399,7 @@ function wc_increase_stock_levels( $order_id ) {
 	}
 
 	if ( $changes ) {
-		$order->add_order_note( __( 'Stock levels increased:', 'woocommerce' ) . ' ' . implode( ', ', $changes ) );
+		$order->add_order_note( __( 'Stock levels increased:', 'woocommerce' ) . ' ' . implode( ', ', $changes ), false, false, array( 'note_group' => OrderNoteGroup::PRODUCT_STOCK ) );
 	}
 
 	do_action( 'woocommerce_restore_order_stock', $order );
@@ -489,6 +491,21 @@ add_action( 'woocommerce_order_status_processing', 'wc_release_stock_for_order',
 add_action( 'woocommerce_order_status_on-hold', 'wc_release_stock_for_order', 11 );
 
 /**
+ * Release coupons used for another order.
+ *
+ * @since 9.5.2
+ * @param \WC_Order|int $order Order ID or instance.
+ * @param bool          $save Save the order after releasing coupons.
+ */
+function wc_release_coupons_for_order( $order, bool $save = true ) {
+	$order = $order instanceof WC_Order ? $order : wc_get_order( $order );
+
+	if ( $order ) {
+		$order->get_data_store()->release_held_coupons( $order, $save );
+	}
+}
+
+/**
  * Return low stock amount to determine if notification needs to be sent
  *
  * Since 5.2.0, this function no longer redirects from variation to its parent product.
@@ -503,7 +520,7 @@ add_action( 'woocommerce_order_status_on-hold', 'wc_release_stock_for_order', 11
 function wc_get_low_stock_amount( WC_Product $product ) {
 	$low_stock_amount = $product->get_low_stock_amount();
 
-	if ( '' === $low_stock_amount && $product->is_type( 'variation' ) ) {
+	if ( '' === $low_stock_amount && $product->is_type( ProductType::VARIATION ) ) {
 		$product          = wc_get_product( $product->get_parent_id() );
 		$low_stock_amount = $product->get_low_stock_amount();
 	}

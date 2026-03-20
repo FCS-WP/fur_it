@@ -6,9 +6,9 @@
 namespace Automattic\WooCommerce\Admin\Features\OnboardingTasks;
 
 use Automattic\WooCommerce\Admin\Features\Features;
-use Automattic\WooCommerce\Admin\Features\OnboardingTasks\DeprecatedExtendedTask;
-use Automattic\WooCommerce\Admin\Features\OnboardingTasks\Task;
 use Automattic\WooCommerce\Admin\Features\OnboardingTasks\Tasks\ReviewShippingOptions;
+use Automattic\WooCommerce\Utilities\FeaturesUtil;
+
 /**
  * Task Lists class.
  */
@@ -50,7 +50,6 @@ class TaskLists {
 		'Tax',
 		'Shipping',
 		'Marketing',
-		'Appearance',
 		'AdditionalPayments',
 		'ReviewShippingOptions',
 		'GetMobileApp',
@@ -109,12 +108,10 @@ class TaskLists {
 	 */
 	public static function init_default_lists() {
 		$tasks = array(
-			'CustomizeStore',
 			'StoreDetails',
 			'Products',
-			'Appearance',
-			'WooCommercePayments',
 			'Payments',
+			'CustomizeStore',
 			'Tax',
 			'Shipping',
 			'LaunchYourStore',
@@ -125,14 +122,6 @@ class TaskLists {
 			if ( false !== $key ) {
 				unset( $tasks[ $key ] );
 			}
-		}
-
-		// Remove the old Personalize your store task if the new CustomizeStore is enabled.
-		$task_to_remove                 = Features::is_enabled( 'customize-store' ) ? 'Appearance' : 'CustomizeStore';
-		$store_customisation_task_index = array_search( $task_to_remove, $tasks, true );
-
-		if ( false !== $store_customisation_task_index ) {
-			unset( $tasks[ $store_customisation_task_index ] );
 		}
 
 		self::add_list(
@@ -444,7 +433,7 @@ class TaskLists {
 
 		foreach ( $submenu['woocommerce'] as $key => $menu_item ) {
 			if ( 0 === strpos( $menu_item[0], _x( 'Home', 'Admin menu name', 'woocommerce' ) ) ) {
-				$submenu['woocommerce'][ $key ][0] .= ' <span class="awaiting-mod update-plugins remaining-tasks-badge woocommerce-task-list-remaining-tasks-badge"><span class="count-' . esc_attr( $tasks_count ) . '">' . absint( $tasks_count ) . '</span></span>'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+				$submenu['woocommerce'][ $key ][0] .= ' <span class="menu-counter remaining-tasks-badge woocommerce-task-list-remaining-tasks-badge"><span class="count-' . esc_attr( $tasks_count ) . '">' . absint( $tasks_count ) . '</span></span>'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 				break;
 			}
 		}
@@ -458,8 +447,19 @@ class TaskLists {
 	 * @return array
 	 */
 	public static function task_list_preloaded_settings( $settings ) {
-		$settings['visibleTaskListIds'] = array_keys( self::get_visible() );
+		$settings['visibleTaskListIds']   = self::all_hidden() ? array() : array_keys( self::get_visible() );
+		$settings['completedTaskListIds'] = get_option( TaskList::COMPLETED_OPTION, array() );
 
 		return $settings;
+	}
+
+	/**
+	 * Check if all task lists are hidden.
+	 *
+	 * @return bool
+	 */
+	public static function all_hidden() {
+		$hidden_lists = get_option( TaskList::HIDDEN_OPTION, array() );
+		return count( $hidden_lists ) === count( self::get_lists() );
 	}
 }

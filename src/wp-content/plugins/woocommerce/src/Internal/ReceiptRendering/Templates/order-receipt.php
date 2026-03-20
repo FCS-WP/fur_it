@@ -18,13 +18,20 @@
 	<p>
 		<?php echo $data['formatted_date']; ?>
 	</p>
+
+	<h3 id="payment_status_section_title"><?php echo strtoupper( $data['texts']['payment_status_section_title'] ); ?></h3>
+	<p><?php echo $data['texts']['payment_status']; ?></p>
+
 	<?php if ( isset( $data['payment_method'] ) ) { ?>
 		<h3 id="payment_method_section_title"><?php echo strtoupper( $data['texts']['payment_method_section_title'] ); ?></h3>
 		<p>
-			<?php if ( $data['payment_info'] ) { ?>
-				<span class="card-icon"></span> - <?php echo $data['payment_info']['card_last4']; ?>
+			<?php if ( $data['show_payment_method_title'] ) { ?>
+				<span><?php echo $data['payment_method']; ?></span>
 			<?php } else { ?>
-				<p><?php echo $data['payment_method']; ?></p>
+				<span class="card-icon"></span>
+				<?php if ( $data['payment_info']['card_last4'] ) { ?>
+					- <?php echo $data['payment_info']['card_last4']; ?>
+				<?php } ?>
 			<?php } ?>
 		</p>
 	<?php } ?>
@@ -42,12 +49,16 @@
 <?php if ( ! empty( $data['notes'] ) ) { ?>
 	<h3 id="order_notes_section_title"><?php echo strtoupper( $data['texts']['order_notes_section_title'] ); ?></h3>
 	<?php foreach ( $data['notes'] as $note ) { ?>
-		<p><?php echo $note; ?></p>
+		<p><?php echo wp_kses_post( $note ); ?></p>
 		<?php
 	}
 }
 
-if ( isset( $data['payment_info'] ) ) {
+if (
+	! empty( $data['payment_info']['app_name'] )
+	|| ! empty( $data['payment_info']['aid'] )
+	|| ! empty( $data['payment_info']['account_type'] )
+) {
 	?>
 	<footer>
 		<p id="payment_info">

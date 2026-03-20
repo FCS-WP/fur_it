@@ -5,7 +5,9 @@
 
 namespace Automattic\WooCommerce\Internal\ProductAttributesLookup;
 
-use Automattic\WooCommerce\Internal\Traits\AccessiblePrivateMethods;
+use Automattic\WooCommerce\Enums\ProductStockStatus;
+use Automattic\WooCommerce\Enums\ProductType;
+use Automattic\WooCommerce\Enums\CatalogVisibility;
 use Automattic\WooCommerce\Utilities\ArrayUtil;
 use Automattic\WooCommerce\Utilities\StringUtil;
 
@@ -15,8 +17,6 @@ defined( 'ABSPATH' ) || exit;
  * Data store class for the product attributes lookup table.
  */
 class LookupDataStore {
-
-	use AccessiblePrivateMethods;
 
 	/**
 	 * Types of updates to perform depending on the current changest
@@ -66,10 +66,10 @@ class LookupDataStore {
 	 * Initialize the hooks used by the class.
 	 */
 	private function init_hooks() {
-		self::add_action( 'woocommerce_run_product_attribute_lookup_update_callback', array( $this, 'run_update_callback' ), 10, 2 );
-		self::add_filter( 'woocommerce_get_sections_products', array( $this, 'add_advanced_section_to_product_settings' ), 100, 1 );
-		self::add_action( 'woocommerce_rest_insert_product', array( $this, 'on_product_created_or_updated_via_rest_api' ), 100, 2 );
-		self::add_filter( 'woocommerce_get_settings_products', array( $this, 'add_product_attributes_lookup_table_settings' ), 100, 2 );
+		add_action( 'woocommerce_run_product_attribute_lookup_update_callback', array( $this, 'run_update_callback' ), 10, 2 );
+		add_filter( 'woocommerce_get_sections_products', array( $this, 'add_advanced_section_to_product_settings' ), 100, 1 );
+		add_action( 'woocommerce_rest_insert_product', array( $this, 'on_product_created_or_updated_via_rest_api' ), 100, 2 );
+		add_filter( 'woocommerce_get_settings_products', array( $this, 'add_product_attributes_lookup_table_settings' ), 100, 2 );
 	}
 
 	/**
@@ -183,8 +183,10 @@ class LookupDataStore {
 	 *
 	 * @param int $product_id The product id to perform the update for.
 	 * @param int $action The action to perform, one of the ACTION_ constants.
+	 *
+	 * @internal For exclusive usage of WooCommerce core, backwards compatibility not guaranteed.
 	 */
-	private function run_update_callback( int $product_id, int $action ) {
+	public function run_update_callback( int $product_id, int $action ) {
 		if ( ! $this->check_lookup_table_exists() ) {
 			return;
 		}
@@ -235,7 +237,7 @@ class LookupDataStore {
 
 		if ( in_array( 'catalog_visibility', $keys, true ) ) {
 			$new_visibility = $changeset['catalog_visibility'];
-			if ( 'visible' === $new_visibility || 'catalog' === $new_visibility ) {
+			if ( CatalogVisibility::VISIBLE === $new_visibility || CatalogVisibility::CATALOG === $new_visibility ) {
 				return self::ACTION_INSERT;
 			} else {
 				return self::ACTION_DELETE;
@@ -263,15 +265,14 @@ class LookupDataStore {
 
 		$in_stock = $product->is_in_stock();
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
 		$wpdb->query(
 			$wpdb->prepare(
-				'UPDATE ' . $this->lookup_table_name . ' SET in_stock = %d WHERE product_id = %d',
+				'UPDATE %i SET in_stock = %d WHERE product_id = %d',
+				$this->lookup_table_name,
 				$in_stock ? 1 : 0,
 				$product->get_id()
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**
@@ -357,15 +358,21 @@ class LookupDataStore {
 	private function delete_data_for( int $product_id ) {
 		global $wpdb;
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		// Single query handled with `index_merge` strategy, while separate with `range` (better performing) on available indexes.
 		$wpdb->query(
 			$wpdb->prepare(
-				'DELETE FROM ' . $this->lookup_table_name . ' WHERE product_id = %d OR product_or_parent_id = %d',
-				$product_id,
+				'DELETE FROM %i WHERE product_or_parent_id = %d',
+				$this->lookup_table_name,
 				$product_id
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+		$wpdb->query(
+			$wpdb->prepare(
+				'DELETE FROM %i WHERE product_id = %d',
+				$this->lookup_table_name,
+				$product_id
+			)
+		);
 	}
 
 	/**
@@ -599,20 +606,19 @@ class LookupDataStore {
 	/**
 	 * Insert one entry in the lookup table.
 	 *
-	 * @param int    $product_id The product id.
-	 * @param int    $product_or_parent_id The product id for non-variable products, the main/parent product id for variations.
-	 * @param string $taxonomy Taxonomy name.
-	 * @param int    $term_id Term id.
+	 * @param int    $product_id             The product id.
+	 * @param int    $product_or_parent_id   The product id for non-variable products, the main/parent product id for variations.
+	 * @param string $taxonomy               Taxonomy name.
+	 * @param int    $term_id                Term id.
 	 * @param bool   $is_variation_attribute True if the taxonomy corresponds to an attribute used to define variations.
-	 * @param bool   $has_stock True if the product is in stock.
+	 * @param bool   $has_stock              True if the product is in stock.
 	 */
 	private function insert_lookup_table_data( int $product_id, int $product_or_parent_id, string $taxonomy, int $term_id, bool $is_variation_attribute, bool $has_stock ) {
 		global $wpdb;
 
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
 		$wpdb->query(
 			$wpdb->prepare(
-				'INSERT INTO ' . $this->lookup_table_name . ' (
+				'INSERT INTO %i (
 					  product_id,
 					  product_or_parent_id,
 					  taxonomy,
@@ -621,6 +627,7 @@ class LookupDataStore {
 					  in_stock)
 					VALUES
 					  ( %d, %d, %s, %d, %d, %d )',
+				$this->lookup_table_name,
 				$product_id,
 				$product_or_parent_id,
 				$taxonomy,
@@ -629,7 +636,6 @@ class LookupDataStore {
 				$has_stock ? 1 : 0
 			)
 		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**
@@ -639,8 +645,10 @@ class LookupDataStore {
 	 * @param \WP_Post         $product The post representing the created or updated product.
 	 * @param \WP_REST_Request $request The REST request that caused the hook to be fired.
 	 * @return void
+	 *
+	 * @internal For exclusive usage of WooCommerce core, backwards compatibility not guaranteed.
 	 */
-	private function on_product_created_or_updated_via_rest_api( \WP_Post $product, \WP_REST_Request $request ): void {
+	public function on_product_created_or_updated_via_rest_api( \WP_Post $product, \WP_REST_Request $request ): void {
 		if ( StringUtil::ends_with( $request->get_route(), '/batch' ) ) {
 			$this->on_product_changed( $product->ID );
 		}
@@ -710,8 +718,10 @@ class LookupDataStore {
 	 *
 	 * @param array $products Original array of settings sections.
 	 * @return array New array of settings sections.
+	 *
+	 * @internal For exclusive usage of WooCommerce core, backwards compatibility not guaranteed.
 	 */
-	private function add_advanced_section_to_product_settings( array $products ): array {
+	public function add_advanced_section_to_product_settings( array $products ): array {
 		if ( $this->check_lookup_table_exists() ) {
 			$products['advanced'] = __( 'Advanced', 'woocommerce' );
 		}
@@ -725,8 +735,10 @@ class LookupDataStore {
 	 * @param array  $settings Original settings configuration array.
 	 * @param string $section_id Settings section identifier.
 	 * @return array New settings configuration array.
+	 *
+	 * @internal For exclusive usage of WooCommerce core, backwards compatibility not guaranteed.
 	 */
-	private function add_product_attributes_lookup_table_settings( array $settings, string $section_id ): array {
+	public function add_product_attributes_lookup_table_settings( array $settings, string $section_id ): array {
 		if ( 'advanced' === $section_id && $this->check_lookup_table_exists() ) {
 			$title_item = array(
 				'title' => __( 'Product attributes lookup table', 'woocommerce' ),
@@ -835,13 +847,13 @@ class LookupDataStore {
 	private function create_data_for_product_cpt_core( int $product_id ) {
 		global $wpdb;
 
-		// phpcs:disable WordPress.DB.PreparedSQL
-		$sql = $wpdb->prepare(
-			"delete from {$this->lookup_table_name} where product_or_parent_id=%d",
-			$product_id
+		$wpdb->query(
+			$wpdb->prepare(
+				'DELETE FROM %i WHERE product_or_parent_id = %d',
+				$this->lookup_table_name,
+				$product_id
+			)
 		);
-		$wpdb->query( $sql );
-		// phpcs:enable WordPress.DB.PreparedSQL
 
 		// * Obtain list of product variations, together with stock statuses; also get the product type.
 		// For a variation this will return just one entry, with type 'variation'.
@@ -877,7 +889,7 @@ class LookupDataStore {
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$product_ids_with_stock_status = $wpdb->get_results( $sql, ARRAY_A );
 
-		$main_product_row = array_filter( $product_ids_with_stock_status, fn( $item ) => 'variation' !== $item['product_type'] );
+		$main_product_row = array_filter( $product_ids_with_stock_status, fn( $item ) => ProductType::VARIATION !== $item['product_type'] );
 		$is_variation     = empty( $main_product_row );
 
 		$main_product_id =
@@ -885,13 +897,13 @@ class LookupDataStore {
 			current( $product_ids_with_stock_status )['parent'] :
 			$product_id;
 
-		$is_variable_product = ! $is_variation && ( 'variable' === current( $main_product_row )['product_type'] );
+		$is_variable_product = ! $is_variation && ( ProductType::VARIABLE === current( $main_product_row )['product_type'] );
 
 		$product_ids_with_stock_status = ArrayUtil::group_by_column( $product_ids_with_stock_status, 'id', true );
 		$variation_ids                 = $is_variation ? array( $product_id ) : array_keys( array_diff_key( $product_ids_with_stock_status, array( $product_id => null ) ) );
 		$product_ids_with_stock_status = ArrayUtil::select( $product_ids_with_stock_status, 'stock_status' );
 
-		$product_ids_with_stock_status = array_map( fn( $item ) => 'instock' === $item ? 1 : 0, $product_ids_with_stock_status );
+		$product_ids_with_stock_status = array_map( fn( $item ) => ProductStockStatus::IN_STOCK === $item ? 1 : 0, $product_ids_with_stock_status );
 
 		// * Obtain the list of attributes used for variations and not.
 		// Output: two lists of attribute slugs, all starting with 'pa_'.

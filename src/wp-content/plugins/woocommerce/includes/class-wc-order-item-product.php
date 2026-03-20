@@ -7,6 +7,9 @@
  * @since   3.0.0
  */
 
+use Automattic\WooCommerce\Enums\OrderStatus;
+use Automattic\WooCommerce\Enums\ProductTaxStatus;
+use Automattic\WooCommerce\Enums\ProductType;
 use Automattic\WooCommerce\Utilities\NumberUtil;
 
 defined( 'ABSPATH' ) || exit;
@@ -99,7 +102,12 @@ class WC_Order_Item_Product extends WC_Order_Item {
 	 */
 	public function set_variation_id( $value ) {
 		if ( $value > 0 && 'product_variation' !== get_post_type( $value ) ) {
-			$this->error( 'order_item_product_invalid_variation_id', __( 'Invalid variation ID', 'woocommerce' ) );
+			$this->error(
+				'order_item_product_invalid_variation_id',
+				__( 'Invalid variation ID', 'woocommerce' ),
+				400,
+				array( 'variation_id' => $value )
+			);
 		}
 		$this->set_prop( 'variation_id', absint( $value ) );
 	}
@@ -160,7 +168,11 @@ class WC_Order_Item_Product extends WC_Order_Item {
 	/**
 	 * Set line taxes and totals for passed in taxes.
 	 *
-	 * @param array $raw_tax_data Raw tax data.
+	 * @since 10.5.0 Handles legacy scalar tax values by converting to arrays.
+	 * When legacy data is detected, attempts to infer tax rate ID from order context.
+	 *
+	 * @param array $raw_tax_data Raw tax data. 'total' and 'subtotal' should be arrays keyed by tax rate ID,
+	 * but scalar values (floats/strings) are accepted for legacy compatibility.
 	 */
 	public function set_taxes( $raw_tax_data ) {
 		$raw_tax_data = maybe_unserialize( $raw_tax_data );
@@ -169,8 +181,38 @@ class WC_Order_Item_Product extends WC_Order_Item {
 			'subtotal' => array(),
 		);
 		if ( ! empty( $raw_tax_data['total'] ) && ! empty( $raw_tax_data['subtotal'] ) ) {
-			$tax_data['subtotal'] = array_map( 'wc_format_decimal', $raw_tax_data['subtotal'] );
-			$tax_data['total']    = array_map( 'wc_format_decimal', $raw_tax_data['total'] );
+			$subtotal = $raw_tax_data['subtotal'];
+			$total    = $raw_tax_data['total'];
+
+			// Handle legacy data where total/subtotal might be floats/strings instead of arrays.
+			// Convert scalar values to array format to preserve the tax amount.
+			$has_legacy_data = ! is_array( $subtotal ) || ! is_array( $total );
+
+			if ( $has_legacy_data ) {
+				$order = $this->get_order();
+				if ( ! is_array( $subtotal ) ) {
+					$subtotal = $this->convert_legacy_tax_value_to_array( $subtotal, $order );
+				}
+				if ( ! is_array( $total ) ) {
+					$total = $this->convert_legacy_tax_value_to_array( $total, $order );
+				}
+				// Log legacy data format for debugging purposes.
+				wc_get_logger()->warning(
+					sprintf(
+						/* translators: %d: order item ID */
+						__( 'Order item #%d contains legacy tax data format. Tax rate ID information is unavailable.', 'woocommerce' ),
+						$this->get_id()
+					),
+					array(
+						'source'        => 'woocommerce-order-item-product',
+						'order_item_id' => $this->get_id(),
+						'order_id'      => $order ? $order->get_id() : 0,
+					)
+				);
+			}
+
+			$tax_data['subtotal'] = array_map( 'wc_format_decimal', $subtotal );
+			$tax_data['total']    = array_map( 'wc_format_decimal', $total );
 
 			// Subtotal cannot be less than total!
 			if ( NumberUtil::array_sum( $tax_data['subtotal'] ) < NumberUtil::array_sum( $tax_data['total'] ) ) {
@@ -210,7 +252,7 @@ class WC_Order_Item_Product extends WC_Order_Item {
 		if ( ! is_a( $product, 'WC_Product' ) ) {
 			$this->error( 'order_item_product_invalid_product', __( 'Invalid product', 'woocommerce' ) );
 		}
-		if ( $product->is_type( 'variation' ) ) {
+		if ( $product->is_type( ProductType::VARIATION ) ) {
 			$this->set_product_id( $product->get_parent_id() );
 			$this->set_variation_id( $product->get_id() );
 			$this->set_variation( is_callable( array( $product, 'get_variation_attributes' ) ) ? $product->get_variation_attributes() : array() );
@@ -418,9 +460,18 @@ class WC_Order_Item_Product extends WC_Order_Item {
 					);
 				}
 			}
-		}
 
-		return apply_filters( 'woocommerce_get_item_downloads', $files, $this, $order );
+			/**
+			 * Filters the list of downloadable files for an order item.
+			 *
+			 * @since 2.7.0
+			 *
+			 * @param array                 $files Array of downloadable file data.
+			 * @param WC_Order_Item_Product $item  The order item product object.
+			 * @param WC_Order              $order The order object.
+			 */
+			return apply_filters( 'woocommerce_get_item_downloads', $files, $this, $order );
+		}
 	}
 
 	/**
@@ -430,7 +481,44 @@ class WC_Order_Item_Product extends WC_Order_Item {
 	 */
 	public function get_tax_status() {
 		$product = $this->get_product();
-		return $product ? $product->get_tax_status() : 'taxable';
+		return $product ? $product->get_tax_status() : ProductTaxStatus::TAXABLE;
+	}
+
+	/**
+	 * Get formatted meta data for the item.
+	 *
+	 * This overrides the parent method to conditionally remove backorder
+	 * meta data when the order is marked as completed.
+	 *
+	 * @param string $hideprefix  Meta data prefix, (default: _).
+	 * @param bool   $include_all Include all meta data, this stop skip items with values already in the product name.
+	 * @return array
+	 */
+	public function get_formatted_meta_data( $hideprefix = '_', $include_all = false ) {
+		$formatted_meta = parent::get_formatted_meta_data( $hideprefix, $include_all );
+
+		$order = $this->get_order();
+
+		if ( $order && $order->has_status( OrderStatus::COMPLETED ) ) {
+			/**
+			 * Filter the backorder meta key.
+			 * Make sure to use the same filter as used in set_backorder_meta().
+			 *
+			 * @param string $backorder_meta_key The backorder meta key.
+			 * @param WC_Order_Item_Product $item The order item product.
+			 * @since 9.9.0
+			 * @return string
+			 */
+			$backorder_meta_key = apply_filters( 'woocommerce_backordered_item_meta_name', __( 'Backordered', 'woocommerce' ), $this );
+
+			foreach ( $formatted_meta as $meta_id => $meta ) {
+				if ( isset( $meta->key ) && $meta->key === $backorder_meta_key ) {
+					unset( $formatted_meta[ $meta_id ] );
+				}
+			}
+		}
+
+		return $formatted_meta;
 	}
 
 	/*
@@ -504,5 +592,30 @@ class WC_Order_Item_Product extends WC_Order_Item {
 			return true;
 		}
 		return parent::offsetExists( $offset );
+	}
+
+	/**
+	 * Indicates that product line items have an associated Cost of Goods Sold value.
+	 * Note that this is true even if the product has np COGS value (in that case the COGS value for the line item will be zero)-
+	 *
+	 * @return bool Always true.
+	 */
+	public function has_cogs(): bool {
+		return true;
+	}
+
+	/**
+	 * Calculate the Cost of Goods Sold value for this line item.
+	 *
+	 * @return float|null The calculated value, null if the product associated to the line item no longer exists.
+	 */
+	public function calculate_cogs_value_core(): ?float {
+		$product = $this->get_product();
+		if ( ! $product ) {
+			return null;
+		}
+
+		$cogs_per_unit = $product->get_cogs_total_value();
+		return $cogs_per_unit * $this->get_quantity();
 	}
 }

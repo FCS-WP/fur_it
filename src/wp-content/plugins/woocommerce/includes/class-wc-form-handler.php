@@ -5,6 +5,10 @@
  * @package WooCommerce\Classes\
  */
 
+use Automattic\WooCommerce\Enums\OrderStatus;
+use Automattic\WooCommerce\Enums\PaymentGatewayFeature;
+use Automattic\WooCommerce\Enums\ProductType;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -205,8 +209,6 @@ class WC_Form_Handler {
 
 		$customer->save();
 
-		wc_add_notice( __( 'Address changed successfully.', 'woocommerce' ) );
-
 		/**
 		 * Hook: woocommerce_customer_save_address.
 		 *
@@ -215,9 +217,16 @@ class WC_Form_Handler {
 		 * @since 3.6.0
 		 * @param int    $user_id User ID being saved.
 		 * @param string $address_type Type of address; 'billing' or 'shipping'.
+		 * @param array  $address The address fields. Since 9.8.0.
+		 * @param WC_Customer $customer The customer object being saved. Since 9.8.0.
 		 */
-		do_action( 'woocommerce_customer_save_address', $user_id, $address_type );
+		do_action( 'woocommerce_customer_save_address', $user_id, $address_type, $address, $customer );
 
+		if ( 0 < wc_notice_count( 'error' ) ) {
+			return;
+		}
+
+		wc_add_notice( __( 'Address changed successfully.', 'woocommerce' ) );
 		wp_safe_redirect( wc_get_endpoint_url( 'edit-address', '', wc_get_page_permalink( 'myaccount' ) ) );
 		exit;
 	}
@@ -334,11 +343,11 @@ class WC_Form_Handler {
 			wp_update_user( $user );
 
 			// Update customer object to keep data in sync.
-			$customer = new WC_Customer( $user->ID );
+			try {
+				$customer = new WC_Customer( $user->ID );
 
-			if ( $customer ) {
 				// Keep billing data in sync if data changed.
-				if ( is_email( $user->user_email ) && $current_email !== $user->user_email ) {
+				if ( isset( $user->user_email ) && is_email( $user->user_email ) && $current_email !== $user->user_email ) {
 					$customer->set_billing_email( $user->user_email );
 				}
 
@@ -351,6 +360,18 @@ class WC_Form_Handler {
 				}
 
 				$customer->save();
+			} catch ( WC_Data_Exception $e ) {
+				// These error messages are already translated.
+				wc_add_notice( $e->getMessage(), 'error' );
+			} catch ( \Exception $e ) {
+				wc_add_notice(
+					sprintf(
+						/* translators: %s: Error message. */
+						__( 'An error occurred while saving account details: %s', 'woocommerce' ),
+						esc_html( $e->getMessage() )
+					),
+					'error'
+				);
 			}
 
 			/**
@@ -531,7 +552,7 @@ class WC_Form_Handler {
 			if ( isset( $available_gateways[ $payment_method_id ] ) ) {
 				$gateway = $available_gateways[ $payment_method_id ];
 
-				if ( ! $gateway->supports( 'add_payment_method' ) && ! $gateway->supports( 'tokenization' ) ) {
+				if ( ! $gateway->supports( PaymentGatewayFeature::ADD_PAYMENT_METHOD ) && ! $gateway->supports( PaymentGatewayFeature::TOKENIZATION ) ) {
 					wc_add_notice( __( 'Invalid payment gateway.', 'woocommerce' ), 'error' );
 					return;
 				}
@@ -616,6 +637,8 @@ class WC_Form_Handler {
 			return;
 		}
 
+		wc_maybe_define_constant( 'WOOCOMMERCE_CART', true );
+
 		wc_nocache_headers();
 
 		$nonce_value = wc_get_var( $_REQUEST['woocommerce-cart-nonce'], wc_get_var( $_REQUEST['_wpnonce'], '' ) ); // @codingStandardsIgnoreLine.
@@ -631,7 +654,19 @@ class WC_Form_Handler {
 			$cart_item     = WC()->cart->get_cart_item( $cart_item_key );
 
 			if ( $cart_item ) {
-				WC()->cart->remove_cart_item( $cart_item_key );
+				$removed = WC()->cart->remove_cart_item( $cart_item_key );
+
+				if ( $removed ) {
+					/**
+					 * Fires when a cart item is removed from a user request.
+					 *
+					 * @param string   $cart_item_key Cart item key.
+					 * @param \WC_Cart $cart          Cart object.
+					 *
+					 * @since 10.6.0
+					 */
+					do_action( 'internal_woocommerce_cart_item_removed_from_user_request', $cart_item_key, WC()->cart );
+				}
 
 				$product = wc_get_product( $cart_item['product_id'] );
 
@@ -702,8 +737,21 @@ class WC_Form_Handler {
 					}
 
 					if ( $passed_validation ) {
+						$old_quantity = $values['quantity'];
 						WC()->cart->set_quantity( $cart_item_key, $quantity, false );
 						$cart_updated = true;
+
+						/**
+						 * Fires when a cart item quantity is updated from a user request.
+						 *
+						 * @param string   $cart_item_key Cart item key.
+						 * @param int|float $quantity     New quantity.
+						 * @param int|float $old_quantity Old quantity.
+						 * @param \WC_Cart $cart          Cart object.
+						 *
+						 * @since 10.6.0
+						 */
+						do_action( 'internal_woocommerce_cart_item_updated_from_user_request', $cart_item_key, $quantity, $old_quantity, WC()->cart );
 					}
 				}
 			}
@@ -750,18 +798,27 @@ class WC_Form_Handler {
 		) {
 			wc_nocache_headers();
 
-			$order_key        = wp_unslash( $_GET['order'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-			$order_id         = absint( $_GET['order_id'] );
-			$order            = wc_get_order( $order_id );
+			$order_key = wp_unslash( $_GET['order'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+			$order_id  = absint( $_GET['order_id'] );
+			$order     = wc_get_order( $order_id );
+			/**
+			 * Filter valid order statuses for cancel.
+			 *
+			 * @since 3.5.0
+			 *
+			 * @param array    $valid_statuses Array of valid order statuses for cancel.
+			 * @param WC_Order $order          Order object.
+			 */
+			$valid_statuses   = apply_filters( 'woocommerce_valid_order_statuses_for_cancel', array( OrderStatus::PENDING, OrderStatus::FAILED ), $order );
 			$user_can_cancel  = current_user_can( 'cancel_order', $order_id );
-			$order_can_cancel = $order->has_status( apply_filters( 'woocommerce_valid_order_statuses_for_cancel', array( 'pending', 'failed' ), $order ) );
+			$order_can_cancel = $order->has_status( $valid_statuses );
 			$redirect         = isset( $_GET['redirect'] ) ? wp_unslash( $_GET['redirect'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 			if ( $user_can_cancel && $order_can_cancel && $order->get_id() === $order_id && hash_equals( $order->get_order_key(), $order_key ) ) {
 
 				// Cancel the order + restore stock.
 				WC()->session->set( 'order_awaiting_payment', false );
-				$order->update_status( 'cancelled', __( 'Order cancelled by customer.', 'woocommerce' ) );
+				$order->update_status( OrderStatus::CANCELLED, __( 'Order cancelled by customer.', 'woocommerce' ) );
 
 				wc_add_notice( apply_filters( 'woocommerce_order_cancelled_notice', __( 'Your order was cancelled.', 'woocommerce' ) ), apply_filters( 'woocommerce_order_cancelled_notice_type', 'notice' ) );
 
@@ -804,9 +861,10 @@ class WC_Form_Handler {
 
 		$add_to_cart_handler = apply_filters( 'woocommerce_add_to_cart_handler', $adding_to_cart->get_type(), $adding_to_cart );
 
-		if ( 'variable' === $add_to_cart_handler || 'variation' === $add_to_cart_handler ) {
+		if ( ProductType::VARIABLE === $add_to_cart_handler || ProductType::VARIATION === $add_to_cart_handler ) {
 			$was_added_to_cart = self::add_to_cart_handler_variable( $product_id );
-		} elseif ( 'grouped' === $add_to_cart_handler ) {
+			$product_id        = ! empty( $_REQUEST['variation_id'] ) ? absint( wp_unslash( $_REQUEST['variation_id'] ) ) : $product_id; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		} elseif ( ProductType::GROUPED === $add_to_cart_handler ) {
 			$was_added_to_cart = self::add_to_cart_handler_grouped( $product_id );
 		} elseif ( has_action( 'woocommerce_add_to_cart_handler_' . $add_to_cart_handler ) ) {
 			do_action( 'woocommerce_add_to_cart_handler_' . $add_to_cart_handler, $url ); // Custom handler.
@@ -816,6 +874,18 @@ class WC_Form_Handler {
 
 		// If we added the product to the cart we can now optionally do a redirect.
 		if ( $was_added_to_cart && 0 === wc_notice_count( 'error' ) ) {
+			$quantity = empty( $_REQUEST['quantity'] ) ? 1 : wc_stock_amount( wp_unslash( $_REQUEST['quantity'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+			/**
+			 * Fires when an item is added to the cart from a user request.
+			 *
+			 * @param int       $product_id Product ID.
+			 * @param int|float $quantity   Quantity added to the cart.
+			 *
+			 * @since 10.6.0
+			 */
+			do_action( 'internal_woocommerce_cart_item_added_from_user_request', $product_id, $quantity );
+
 			$url = apply_filters( 'woocommerce_add_to_cart_redirect', $url, $adding_to_cart );
 
 			if ( $url ) {
@@ -836,6 +906,11 @@ class WC_Form_Handler {
 	 * @return bool success or not
 	 */
 	private static function add_to_cart_handler_simple( $product_id ) {
+		if ( ! WC()->cart ) {
+			wc_doing_it_wrong( __FUNCTION__, 'Cart is not initialized.', '10.5.0' );
+			return false;
+		}
+
 		$quantity          = empty( $_REQUEST['quantity'] ) ? 1 : wc_stock_amount( wp_unslash( $_REQUEST['quantity'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$passed_validation = apply_filters( 'woocommerce_add_to_cart_validation', true, $product_id, $quantity );
 
@@ -926,9 +1001,20 @@ class WC_Form_Handler {
 		}
 
 		// Prevent parent variable product from being added to cart.
-		if ( empty( $variation_id ) && $product && $product->is_type( 'variable' ) ) {
-			/* translators: 1: product link, 2: product name */
-			wc_add_notice( sprintf( __( 'Please choose product options by visiting <a href="%1$s" title="%2$s">%2$s</a>.', 'woocommerce' ), esc_url( get_permalink( $product_id ) ), esc_html( $product->get_name() ) ), 'error' );
+		if ( empty( $variation_id ) && $product && $product->is_type( ProductType::VARIABLE ) ) {
+			$current_url        = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), PHP_URL_PATH ) : '';
+			$product_url        = wp_parse_url( get_permalink( $product_id ), PHP_URL_PATH );
+			$is_in_product_page = $current_url && $product_url && untrailingslashit( $current_url ) === untrailingslashit( $product_url );
+
+			if ( $is_in_product_page ) {
+				/* translators: 1: product name */
+				$error_message = sprintf( __( 'Please choose product options for %1$s.', 'woocommerce' ), esc_html( $product->get_name() ) );
+			} else {
+				/* translators: 1: product link, 2: product name */
+				$error_message = sprintf( __( 'Please choose product options by visiting <a href="%1$s" title="%2$s">%2$s</a>.', 'woocommerce' ), esc_url( get_permalink( $product_id ) ), esc_html( $product->get_name() ) );
+			}
+
+			wc_add_notice( $error_message, 'error' );
 
 			return false;
 		}
@@ -957,7 +1043,7 @@ class WC_Form_Handler {
 			$valid_nonce = wp_verify_nonce( $nonce_value, 'woocommerce-login' );
 		}
 
-		if ( isset( $_POST['login'], $_POST['username'], $_POST['password'] ) && $valid_nonce ) {
+		if ( isset( $_POST['login'], $_POST['username'], $_POST['password'] ) && is_string( $_POST['username'] ) && is_string( $_POST['password'] ) && $valid_nonce ) {
 
 			try {
 				$creds = array(
@@ -986,7 +1072,7 @@ class WC_Form_Handler {
 					}
 				}
 
-				// Peform the login.
+				// Perform the login.
 				$user = wp_signon( apply_filters( 'woocommerce_login_credentials', $creds ), is_ssl() );
 
 				if ( is_wp_error( $user ) ) {

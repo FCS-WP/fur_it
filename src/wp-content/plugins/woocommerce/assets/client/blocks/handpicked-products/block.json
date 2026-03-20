@@ -2,17 +2,15 @@
 	"name": "woocommerce/handpicked-products",
 	"title": "Hand-picked Products",
 	"category": "woocommerce",
-	"keywords": [
-		"Handpicked Products",
-		"WooCommerce"
-	],
+	"keywords": [ "Handpicked Products", "WooCommerce" ],
 	"description": "Display a selection of hand-picked products in a grid.",
 	"supports": {
-		"align": [
-			"wide",
-			"full"
-		],
-		"html": false
+		"interactivity": {
+			"clientNavigation": false
+		},
+		"align": [ "wide", "full" ],
+		"html": false,
+		"inserter": false
 	},
 	"attributes": {
 		"align": {

@@ -8,6 +8,9 @@
  * @since   3.0.0
  */
 
+use Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController;
+use Automattic\WooCommerce\Internal\ProductFilters\CacheController;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -148,6 +151,11 @@ class WC_REST_System_Status_Tools_V2_Controller extends WC_REST_Controller {
 				'button' => __( 'Regenerate', 'woocommerce' ),
 				'desc'   => __( 'This tool will regenerate product lookup table data. This process may take a while.', 'woocommerce' ),
 			),
+			'repair_coupons_lookup_table'          => array(
+				'name'   => __( 'Coupons lookup table', 'woocommerce' ),
+				'button' => __( 'Repair', 'woocommerce' ),
+				'desc'   => __( 'This tool will repair the coupons lookup table data with missing discount amounts. This process may take a while.', 'woocommerce' ),
+			),
 			'recount_terms'                        => array(
 				'name'   => __( 'Term counts', 'woocommerce' ),
 				'button' => __( 'Recount terms', 'woocommerce' ),
@@ -216,6 +224,11 @@ class WC_REST_System_Status_Tools_V2_Controller extends WC_REST_Controller {
 					__( 'Note:', 'woocommerce' ),
 					__( 'This tool will update your WooCommerce database to the latest version. Please ensure you make sufficient backups before proceeding.', 'woocommerce' )
 				),
+			),
+			'recreate_order_address_fts_index'     => array(
+				'name'   => __( 'Re-create Order Address FTS index', 'woocommerce' ),
+				'button' => __( 'Recreate index', 'woocommerce' ),
+				'desc'   => __( 'This tool will recreate the full text search index for order addresses. If the index does not exist, it will try to create it.', 'woocommerce' ),
 			),
 		);
 		if ( method_exists( 'WC_Install', 'verify_base_tables' ) ) {
@@ -462,6 +475,9 @@ class WC_REST_System_Status_Tools_V2_Controller extends WC_REST_Controller {
 				}
 
 				WC_Cache_Helper::get_transient_version( 'shipping', true );
+
+				wc_get_container()->get( CacheController::class )->delete_filter_data_transients();
+
 				$message = __( 'Product transients cleared', 'woocommerce' );
 				break;
 
@@ -516,6 +532,11 @@ class WC_REST_System_Status_Tools_V2_Controller extends WC_REST_Controller {
 				}
 				$message = __( 'Lookup tables are regenerating', 'woocommerce' );
 				break;
+
+			case 'repair_coupons_lookup_table':
+				$result  = wc_repair_zero_discount_coupons_lookup_table();
+				$message = $result['message'];
+				break;
 			case 'reset_roles':
 				// Remove then re-add caps and roles.
 				WC_Install::remove_roles();
@@ -530,9 +551,10 @@ class WC_REST_System_Status_Tools_V2_Controller extends WC_REST_Controller {
 
 			case 'clear_sessions':
 				$wpdb->query( "TRUNCATE {$wpdb->prefix}woocommerce_sessions" );
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				$result = absint( $wpdb->query( "DELETE FROM {$wpdb->usermeta} WHERE meta_key='_woocommerce_persistent_cart_" . get_current_blog_id() . "';" ) ); // WPCS: unprepared SQL ok.
 				wp_cache_flush();
-				/* translators: %d: amount of sessions */
+				/* translators: %d: number of saved carts */
 				$message = sprintf( __( 'Deleted all active sessions, and %d saved carts.', 'woocommerce' ), absint( $result ) );
 				break;
 
@@ -542,8 +564,8 @@ class WC_REST_System_Status_Tools_V2_Controller extends WC_REST_Controller {
 				break;
 
 			case 'delete_taxes':
-				$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}woocommerce_tax_rates;" );
-				$wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}woocommerce_tax_rate_locations;" );
+				$wpdb->query( "DELETE FROM {$wpdb->prefix}woocommerce_tax_rates;" );
+				$wpdb->query( "DELETE FROM {$wpdb->prefix}woocommerce_tax_rate_locations;" );
 
 				if ( method_exists( 'WC_Cache_Helper', 'invalidate_cache_group' ) ) {
 					WC_Cache_Helper::invalidate_cache_group( 'taxes' );
@@ -596,6 +618,13 @@ class WC_REST_System_Status_Tools_V2_Controller extends WC_REST_Controller {
 					$message .= implode( ', ', $missing_tables );
 					$ran      = false;
 				}
+				break;
+
+			case 'recreate_order_address_fts_index':
+				$hpos_controller = wc_get_container()->get( CustomOrdersTableController::class );
+				$results         = $hpos_controller->recreate_order_address_fts_index();
+				$ran             = $results['status'];
+				$message         = $results['message'];
 				break;
 
 			default:

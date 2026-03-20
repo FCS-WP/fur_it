@@ -34,7 +34,7 @@ class Controller extends GenericController implements ExportableInterface {
 	protected $rest_base = 'reports/customers';
 
 	/**
-	 * Get data from Query.
+	 * Get data from Customers\Query.
 	 *
 	 * @override GenericController::get_datastore_data()
 	 *
@@ -87,6 +87,9 @@ class Controller extends GenericController implements ExportableInterface {
 		$args['users']               = $request['users'];
 		$args['force_cache_refresh'] = $request['force_cache_refresh'];
 		$args['filter_empty']        = $request['filter_empty'];
+		$args['user_type']           = $request['user_type'];
+		$args['location_includes']   = $request['location_includes'];
+		$args['location_excludes']   = $request['location_excludes'];
 
 		$between_params_numeric    = array( 'orders_count', 'total_spend', 'avg_order_value' );
 		$normalized_params_numeric = TimeInterval::normalize_between_params( $request, $between_params_numeric, false );
@@ -133,6 +136,8 @@ class Controller extends GenericController implements ExportableInterface {
 	public function prepare_item_for_response( $report, $request ) {
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
 		$data    = $this->add_additional_fields_to_object( $report, $request );
+		// Trim name field to prevent whitespace issues.
+		$data['name'] = trim( $data['name'] );
 		// Registered date is UTC.
 		$data['date_registered_gmt'] = wc_rest_prepare_date_response( $data['date_registered'] );
 		$data['date_registered']     = wc_rest_prepare_date_response( $data['date_registered'], false );
@@ -203,6 +208,24 @@ class Controller extends GenericController implements ExportableInterface {
 				),
 				'name'                 => array(
 					'description' => __( 'Name.', 'woocommerce' ),
+					'type'        => 'string',
+					'context'     => array( 'view', 'edit' ),
+					'readonly'    => true,
+				),
+				'first_name'           => array(
+					'description' => __( 'First name.', 'woocommerce' ),
+					'type'        => 'string',
+					'context'     => array( 'view', 'edit' ),
+					'readonly'    => true,
+				),
+				'last_name'            => array(
+					'description' => __( 'Last name.', 'woocommerce' ),
+					'type'        => 'string',
+					'context'     => array( 'view', 'edit' ),
+					'readonly'    => true,
+				),
+				'email'                => array(
+					'description' => __( 'Email address.', 'woocommerce' ),
 					'type'        => 'string',
 					'context'     => array( 'view', 'edit' ),
 					'readonly'    => true,
@@ -304,18 +327,24 @@ class Controller extends GenericController implements ExportableInterface {
 			'validate_callback' => 'rest_validate_request_arg',
 		);
 		$params['orderby']['default']      = 'date_registered';
-		$params['orderby']['enum']         = array(
-			'username',
-			'name',
-			'country',
-			'city',
-			'state',
-			'postcode',
-			'date_registered',
-			'date_last_active',
-			'orders_count',
-			'total_spend',
-			'avg_order_value',
+		$params['orderby']['enum']         = $this->apply_custom_orderby_filters(
+			array(
+				'username',
+				'name',
+				'first_name',
+				'last_name',
+				'email',
+				'location',
+				'country',
+				'city',
+				'state',
+				'postcode',
+				'date_registered',
+				'date_last_active',
+				'orders_count',
+				'total_spend',
+				'avg_order_value',
+			)
 		);
 		$params['match']                   = array(
 			'description'       => __( 'Indicates whether all the conditions should be true for the resulting set, or if any one of them is sufficient. Match affects the following parameters: status_is, status_is_not, product_includes, product_excludes, coupon_includes, coupon_excludes, customer, categories', 'woocommerce' ),
@@ -525,7 +554,27 @@ class Controller extends GenericController implements ExportableInterface {
 				),
 			),
 		);
-
+		$params['user_type']               = array(
+			'description'       => __( 'Limit result to items with specified user type.', 'woocommerce' ),
+			'type'              => 'string',
+			'default'           => 'all',
+			'validate_callback' => 'rest_validate_request_arg',
+			'enum'              => array(
+				'all',
+				'registered',
+				'guest',
+			),
+		);
+		$params['location_includes']       = array(
+			'description'       => __( 'Includes customers by location (state, country). Provide a comma-separated list of locations. Each location can be a country code (e.g. GB) or combination of country and state (e.g. US:CA).', 'woocommerce' ),
+			'type'              => 'string',
+			'validate_callback' => 'rest_validate_request_arg',
+		);
+		$params['location_excludes']       = array(
+			'description'       => __( 'Excludes customers by location (state, country). Provide a comma-separated list of locations. Each location can be a country code (e.g. GB) or combination of country and state (e.g. US:CA).', 'woocommerce' ),
+			'type'              => 'string',
+			'validate_callback' => 'rest_validate_request_arg',
+		);
 		return $params;
 	}
 
