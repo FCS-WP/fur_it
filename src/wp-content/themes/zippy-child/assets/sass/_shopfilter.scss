@@ -31,14 +31,16 @@
 // ── Section ──────────────────────────────────────────────────
 .zippy-filter__section {
     border-bottom: 1px solid #eee;
+    margin-bottom: 0.5rem;
 }
 
 .zippy-filter__section-toggle {
+    margin-bottom: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 16px 0;
+    padding: 0;
     background: none;
     border: none;
     cursor: pointer;
@@ -68,7 +70,7 @@
 .zippy-filter__section-body {
     overflow: hidden;
     max-height: 0;
-    transition: max-height 0.3s ease, padding 0.3s ease;
+    transition: all 0.3s ease-in-out;
     padding-bottom: 0;
 }
 
@@ -159,8 +161,8 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    font-size: 13px;
-    color: #555;
+    font-size: 16px;
+    color: $primary-color;
     font-weight: 500;
 }
 
@@ -257,7 +259,6 @@
 
 .zippy-filter__submit-btn {
     width: 100%;
-    padding: 12px;
     background: $primary-color;
     color: #fff;
     border: none;

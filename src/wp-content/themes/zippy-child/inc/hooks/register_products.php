@@ -190,99 +190,64 @@ function zippy_category_tab( $atts ) {
 }
 add_shortcode('zippy_category_tab', 'zippy_category_tab');
 
+add_filter('woocommerce_before_main_content', function() {
+    // Get featured product categories (those marked as featured in WC)
+    $featured_cats = get_terms([
+        'taxonomy'   => 'product_cat',
+        'hide_empty' => true,
+        'exclude'    => get_option('default_product_cat'),
+        'meta_query' => [
+            [
+                'key'   => 'order',           // WC uses this to mark featured
+                'compare' => 'EXISTS',
+            ],
+        ],
+        'orderby'    => 'meta_value_num',
+        'order'      => 'ASC',
+    ]);
 
-// ============================================================
-// [zippy_promo_banner]
-// ============================================================
-function zippy_promo_banner( $atts, $content = null ) {
-    $atts = shortcode_atts([
-        // Left panel
-        'tag_label'   => '',           // e.g. "SPRING SEASON"
-        'tag_color'   => '#fff',
-        'tag_bg'      => '#b5651d',
-        'title'       => '',
-        'description' => '',
-        'btn_text'    => 'Shop Now',
-        'btn_url'     => '#',
-        'btn_target'  => '_self',
+    // Fallback: just get top-level categories if none are "featured"
+    if ( empty($featured_cats) || is_wp_error($featured_cats) ) {
+        $featured_cats = get_terms([
+            'taxonomy'   => 'product_cat',
+            'hide_empty' => true,
+            'parent'     => 0,
+            'exclude'    => get_option('default_product_cat'),
+            'orderby'    => 'name',
+            'order'      => 'ASC',
+        ]);
+    }
 
-        // Right panel
-        'image'       => '',           // image URL
-        'image_alt'   => '',
+    if ( empty($featured_cats) || is_wp_error($featured_cats) ) return;
 
-        // Layout
-        'bg_color'    => '#fdf6ec',
-        'split'       => '50',         // left panel % width e.g. 50
-        'min_height'  => '320px',
-        'border_radius' => '20px',
-        'class'       => '',
-    ], $atts, 'zippy_promo_banner');
+    // Detect current active category
+    $current_cat_slug = is_product_category() ? get_queried_object()->slug : '';
 
-    $class = 'zippy-promo-banner';
-    if ( $atts['class'] ) $class .= ' ' . esc_attr($atts['class']);
+    // Build tabs
+    $tabs = '';
+    foreach ( $featured_cats as $cat ) {
+        // Get category thumbnail
+        $thumbnail_id = get_term_meta($cat->term_id, 'thumbnail_id', true);
+        $icon_url     = $thumbnail_id
+            ? wp_get_attachment_url($thumbnail_id)
+            : '';
 
-    $split_right = 100 - (int) $atts['split'];
+        $is_active = $current_cat_slug === $cat->slug ? 'true' : 'false';
+        $cat_url   = get_term_link($cat);
 
-    // Tag badge
-    $tag_html = '';
-    if ( ! empty($atts['tag_label']) ) {
-        $tag_html = sprintf(
-            '<span class="zippy-promo-banner__tag" style="color:%s;background:%s">%s</span>',
-            esc_attr($atts['tag_color']),
-            esc_attr($atts['tag_bg']),
-            esc_html($atts['tag_label'])
+        $tabs .= sprintf(
+            '[zippy_category_tab label="%s" url="%s" icon="%s" active="%s"]',
+            esc_attr($cat->name),
+            esc_url($cat_url),
+            esc_url($icon_url),
+            $is_active
         );
     }
 
-    // Button
-    $btn_html = '';
-    if ( ! empty($atts['btn_text']) ) {
-        $btn_html = sprintf(
-            '<a class="zippy-promo-banner__btn" href="%s" target="%s">%s</a>',
-            esc_url($atts['btn_url']),
-            esc_attr($atts['btn_target']),
-            esc_html($atts['btn_text'])
-        );
-    }
-
-    // Right image
-    $image_html = '';
-    if ( ! empty($atts['image']) ) {
-        $image_html = sprintf(
-            '<img src="%s" alt="%s" class="zippy-promo-banner__image" />',
-            esc_url($atts['image']),
-            esc_attr($atts['image_alt'] ?: $atts['title'])
-        );
-    }
-
-    return sprintf(
-        '<div class="%s" style="background:%s;border-radius:%s;min-height:%s">
-            <div class="zippy-promo-banner__left" style="flex:0 0 %s%%">
-                %s
-                <h2 class="zippy-promo-banner__title">%s</h2>
-                <p class="zippy-promo-banner__desc">%s</p>
-                %s
-            </div>
-            <div class="zippy-promo-banner__right" style="flex:0 0 %s%%;border-radius:%s">
-                %s
-            </div>
-        </div>',
-        $class,
-        esc_attr($atts['bg_color']),
-        esc_attr($atts['border_radius']),
-        esc_attr($atts['min_height']),
-        (int) $atts['split'],
-        $tag_html,
-        wp_kses_post($atts['title']),
-        wp_kses_post($atts['description']),
-        $btn_html,
-        $split_right,
-        esc_attr($atts['border_radius']),
-        $image_html
-    );
-}
-add_shortcode('zippy_promo_banner', 'zippy_promo_banner');
-
+    echo '<div class="cat-tabs-wrapper">';
+    echo do_shortcode('[zippy_category_tabs align="left"]' . $tabs . '[/zippy_category_tabs]');
+    echo '</div>';
+});
 
 // ============================================================
 // [zippy_product_grid]
