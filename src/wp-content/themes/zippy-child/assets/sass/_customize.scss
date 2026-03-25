@@ -74,6 +74,7 @@ $white: #fff;
         .box-sub-title {
             color: $white;
         }
+
         .box-text {
             padding-bottom: 0;
             text-align: center;
@@ -85,6 +86,7 @@ $white: #fff;
         z-index: 9999;
         top: -30px;
         left: 30px;
+
         img {
             width: 50px;
         }
@@ -94,6 +96,7 @@ $white: #fff;
     .box-sub-title {
         text-align: center;
     }
+
     .box-content {
         display: flex;
         height: 100%;
@@ -101,18 +104,22 @@ $white: #fff;
         justify-content: space-between;
     }
 }
+
 .float-testimonial {
     position: absolute;
     bottom: 0;
     right: 0;
 }
+
 .rounded {
     border-radius: 20px;
+
     * {
         border-radius: 20px;
     }
 }
-.text-dark *{
+
+.text-dark * {
     color: $fs-color-primary !important;
 }
 
@@ -131,7 +138,7 @@ $white: #fff;
         background-color: #ffffff;
 
         .zippy-service-card__title {
-            color: $fs-color-success;   // #bfac91
+            color: $fs-color-success; // #bfac91
             font-weight: 700;
             font-size: 28px;
         }
@@ -142,7 +149,7 @@ $white: #fff;
             color: $primary-color;
 
             &:hover {
-                background-color: $fs-color-success;  // #e9e0d1
+                background-color: $fs-color-success; // #e9e0d1
                 border-color: $fs-color-success;
             }
         }
@@ -150,10 +157,10 @@ $white: #fff;
 
     // ── Dark variant (beige card, bold title) ──
     &--dark {
-        background-color: $fs-color-secondary;   // #e9e0d1
+        background-color: $fs-color-secondary; // #e9e0d1
 
         .zippy-service-card__title {
-            color: $primary-color;   // #191919
+            color: $primary-color; // #191919
             text-align: center;
             font-weight: 700;
             font-size: 28px;
@@ -304,6 +311,7 @@ $white: #fff;
             margin-right: 4px;
         }
     }
+
     .zippy-product-card__price del {
         color: $default-text-color !important;
         font-size: 1.2rem;
@@ -340,7 +348,7 @@ $white: #fff;
     padding: 30px;
 }
 
-.p-0{
+.p-0 {
     padding: 0 !important;
 }
 
@@ -362,8 +370,8 @@ $white: #fff;
             }
 
             // Active state
-            &.current-menu-item > a,
-            &.current-menu-ancestor > a {
+            &.current-menu-item>a,
+            &.current-menu-ancestor>a {
                 font-weight: 600;
             }
         }
@@ -384,6 +392,7 @@ $white: #fff;
         }
     }
 }
+
 .absolute-footer {
     display: none;
 }
@@ -391,6 +400,7 @@ $white: #fff;
 .h-full .col-inner {
     height: 100%;
 }
+
 .ppocta-ft-fix {
     position: fixed;
     bottom: 60px;
@@ -408,12 +418,17 @@ $white: #fff;
     background: url("/wp-content/uploads/2026/03/whatsapp-icon-2.svg") center center no-repeat;
     background-size: 100%;
 }
-a#whatsappButton {outline:none; }
+
+a#whatsappButton {
+    outline: none;
+}
+
 a#whatsappButton:hover {
-    text-decoration:none;
+    text-decoration: none;
     background: url("/wp-content/uploads/2026/03/whatsapp-icon-2.svg") center center no-repeat;
     background-size: 100%;
 }
+
 a#whatsappButton span {
     z-index: 10;
     display: none;
@@ -424,9 +439,13 @@ a#whatsappButton span {
     border-radius: 4px;
     box-shadow: 5px 5px 8px #CCC;
 }
+
 a#whatsappButton:hover span {
-    display:inline; position:absolute; color:#111;
-    border:1px solid #DCA; background:#fffAF0;
+    display: inline;
+    position: absolute;
+    color: #111;
+    border: 1px solid #DCA;
+    background: #fffAF0;
 }
 
 @media (max-width: 1024px) {
@@ -437,5 +456,39 @@ a#whatsappButton:hover span {
 
 .h-250 {
     height: 250px;
-    border-left:  1px solid $default-text-color;
+    border-left: 1px solid $default-text-color;
+}
+
+.custom-box-btns {
+    gap: 1rem;
+
+    .button {
+        margin: 0;
+    }
+}
+
+.custom-box-booking {
+    background-color: $fs-color-secondary;
+    padding: 20px;
+    border-radius: 20px;
+}
+
+.icon-shopping-cart::after {
+    background-color: $fs-color-success !important;
+}
+
+
+
+header {
+    .nav.nav-right>li {
+        margin: 0 8px !important;
+    }
+
+    .icon-user {
+        font-size: 24px !important;
+    }
+
+    .nav-spacing-xlarge>li {
+        margin: 0 13px !important;
+    }
 }

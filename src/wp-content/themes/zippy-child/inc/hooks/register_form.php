@@ -518,3 +518,515 @@ function zippy_contact_form($atts)
     return ob_get_clean();
 }
 add_shortcode('zippy_contact_form', 'zippy_contact_form');
+
+/**
+ * Zippy Form Builder Shortcodes
+ *
+ * Build dynamic forms entirely via shortcodes.
+ *
+ * Usage in functions.php:
+ *   require_once get_stylesheet_directory() . '/inc/zippy-form-builder.php';
+ *
+ * Example:
+ *   [booking_form submit_text="Send" recipient="hello@site.com"]
+ *       [form_input type="text"     label="Full Name"   required="true" width="50%"]
+ *       [form_input type="email"    label="Email"       required="true" width="50%"]
+ *       [form_input type="tel"      label="Phone"       width="50%"]
+ *       [form_input type="date"     label="Date"        width="50%"]
+ *       [form_input type="number"   label="Guests"      min="1" max="20" width="50%"]
+ *       [form_input type="textarea" label="Message"     rows="4"]
+ *       [form_select label="Service" options="Grooming, Spa, Vaccine" required="true" width="50%"]
+ *       [form_select label="Time Slot" options="9:00am, 11:00am, 2:00pm" width="50%"]
+ *       [form_checkbox label="I agree to the terms and conditions" required="true"]
+ *   [/booking_form]
+ */
+
+if ( ! defined('ABSPATH') ) exit;
+
+
+// ============================================================
+// Global state — collect fields registered inside [booking_form]
+// ============================================================
+global $zippy_form_fields;
+$zippy_form_fields = [];
+
+
+// ============================================================
+// Helper: generate field ID
+// ============================================================
+function zippy_field_id( $label, $form_uid ) {
+    return $form_uid . '-' . sanitize_title($label);
+}
+
+
+// ============================================================
+// Helper: parse width to CSS grid span
+// Width = percentage string e.g. "50%", "33%", "100%"
+// Maps to CSS grid column span in a 12-col grid
+// ============================================================
+function zippy_width_to_style( $width ) {
+    if ( empty($width) || $width === '100%' ) return '';
+    return 'style="flex:0 0 ' . esc_attr($width) . ';max-width:' . esc_attr($width) . ';"';
+}
+
+
+// ============================================================
+// [form_input] — text, email, tel, number, date, time, textarea
+// ============================================================
+function zippy_form_input( $atts ) {
+    global $zippy_form_fields;
+
+    $atts = shortcode_atts([
+        'type'        => 'text',
+        'label'       => '',
+        'placeholder' => '',
+        'required'    => 'false',
+        'width'       => '100%',
+        'value'       => '',
+        'min'         => '',
+        'max'         => '',
+        'step'        => '',
+        'rows'        => '4',        // for textarea
+        'name'        => '',         // override field name
+        'class'       => '',
+    ], $atts, 'form_input');
+
+    // Register field for server-side processing
+    $zippy_form_fields[] = [
+        'type'     => $atts['type'],
+        'label'    => $atts['label'],
+        'name'     => $atts['name'] ?: sanitize_title($atts['label']),
+        'required' => $atts['required'] === 'true',
+    ];
+
+    return '__ZIPPY_FIELD__' . base64_encode(json_encode($atts)) . '__';
+}
+add_shortcode('form_input', 'zippy_form_input');
+
+
+// ============================================================
+// [form_select] — dropdown select
+// ============================================================
+function zippy_form_select( $atts ) {
+    global $zippy_form_fields;
+
+    $atts = shortcode_atts([
+        'label'       => '',
+        'options'     => '',         // comma-separated: "Option A, Option B"
+        'placeholder' => 'Select...',
+        'required'    => 'false',
+        'width'       => '100%',
+        'name'        => '',
+        'class'       => '',
+    ], $atts, 'form_select');
+
+    $zippy_form_fields[] = [
+        'type'     => 'select',
+        'label'    => $atts['label'],
+        'name'     => $atts['name'] ?: sanitize_title($atts['label']),
+        'required' => $atts['required'] === 'true',
+    ];
+
+    return '__ZIPPY_FIELD__' . base64_encode(json_encode(array_merge($atts, ['_type' => 'select']))) . '__';
+}
+add_shortcode('form_select', 'zippy_form_select');
+
+
+// ============================================================
+// [form_checkbox] — single checkbox
+// ============================================================
+function zippy_form_checkbox( $atts ) {
+    global $zippy_form_fields;
+
+    $atts = shortcode_atts([
+        'label'    => '',
+        'required' => 'false',
+        'width'    => '100%',
+        'name'     => '',
+        'class'    => '',
+    ], $atts, 'form_checkbox');
+
+    $zippy_form_fields[] = [
+        'type'     => 'checkbox',
+        'label'    => $atts['label'],
+        'name'     => $atts['name'] ?: sanitize_title($atts['label']),
+        'required' => $atts['required'] === 'true',
+    ];
+
+    return '__ZIPPY_FIELD__' . base64_encode(json_encode(array_merge($atts, ['_type' => 'checkbox']))) . '__';
+}
+add_shortcode('form_checkbox', 'zippy_form_checkbox');
+
+
+// ============================================================
+// [booking_form] — wrapper that renders everything
+// ============================================================
+function zippy_booking_form( $atts, $content = null ) {
+    global $zippy_form_fields;
+
+    $atts = shortcode_atts([
+        'submit_text'     => 'Submit',
+        'recipient'       => '',          // email recipient — defaults to admin
+        'subject'         => 'New Form Submission',
+        'success_message' => 'Thank you! Your submission has been received.',
+        'id'              => '',          // custom form ID
+        'class'           => '',
+    ], $atts, 'booking_form');
+
+    // Reset field registry for this form instance
+    $zippy_form_fields = [];
+
+    // Process child shortcodes — this populates $zippy_form_fields
+    // and returns placeholder tokens
+    $processed = do_shortcode($content);
+
+    // Snapshot fields registered by child shortcodes
+    $fields_snapshot = $zippy_form_fields;
+    $zippy_form_fields = []; // reset for next form on page
+
+    $uid        = $atts['id'] ?: 'zform-' . uniqid();
+    $form_class = 'zippy-form' . ( $atts['class'] ? ' ' . esc_attr($atts['class']) : '' );
+    $recipient  = ! empty($atts['recipient']) ? sanitize_email($atts['recipient']) : get_option('admin_email');
+
+    // ── Handle PRG flash ──
+    $errors  = [];
+    $success = false;
+    $old     = [];
+
+    if ( isset($_GET['zf']) ) {
+        $flash_key = sanitize_key($_GET['zf']);
+        $flash     = get_transient($flash_key);
+        if ( $flash ) {
+            $errors  = $flash['errors']  ?? [];
+            $success = $flash['success'] ?? false;
+            $old     = $flash['old']     ?? [];
+            delete_transient($flash_key);
+        }
+    }
+
+    ob_start();
+    ?>
+
+    <div class="zippy-form-wrap <?php echo esc_attr($atts['class']); ?>">
+
+        <?php if ( $success ) : ?>
+        <div class="zippy-form-notice zippy-form-notice--success" role="alert">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            <span><?php echo esc_html($atts['success_message']); ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if ( ! empty($errors) ) : ?>
+        <div class="zippy-form-notice zippy-form-notice--error" role="alert">
+            <ul>
+                <?php foreach ($errors as $err) : ?>
+                    <li><?php echo esc_html($err); ?></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+        <?php endif; ?>
+
+        <?php if ( ! $success ) : ?>
+        <form
+            id="<?php echo esc_attr($uid); ?>"
+            class="<?php echo esc_attr($form_class); ?>"
+            method="POST"
+            action="<?php echo esc_url(get_permalink()); ?>"
+            novalidate
+        >
+            <?php wp_nonce_field('zippy_form_submit_' . $uid, 'zippy_form_nonce'); ?>
+            <input type="hidden" name="zippy_form_id"        value="<?php echo esc_attr($uid); ?>" />
+            <input type="hidden" name="zippy_form_recipient" value="<?php echo esc_attr($recipient); ?>" />
+            <input type="hidden" name="zippy_form_subject"   value="<?php echo esc_attr($atts['subject']); ?>" />
+            <input type="hidden" name="zippy_form_fields"    value="<?php echo esc_attr(base64_encode(json_encode($fields_snapshot))); ?>" />
+
+            <div class="zippy-form__fields">
+                <?php
+                // ── Render each field token ──
+                $tokens = explode('__ZIPPY_FIELD__', $processed);
+                foreach ( $tokens as $token ) :
+                    if ( empty(trim($token)) ) continue;
+
+                    // Check if this is a field token
+                    $end_pos = strpos($token, '__');
+                    if ( $end_pos === false ) {
+                        // Plain text/HTML between fields
+                        echo wp_kses_post($token);
+                        continue;
+                    }
+
+                    $encoded   = substr($token, 0, $end_pos);
+                    $remainder = substr($token, $end_pos + 2);
+                    $field     = json_decode(base64_decode($encoded), true);
+
+                    if ( ! $field ) {
+                        echo wp_kses_post($token);
+                        continue;
+                    }
+
+                    $field_type = $field['_type'] ?? $field['type'] ?? 'text';
+                    $label      = $field['label'] ?? '';
+                    $name       = $field['name'] ?? sanitize_title($label);
+                    $required   = ($field['required'] ?? 'false') === 'true';
+                    $width      = $field['width'] ?? '100%';
+                    $field_id   = $uid . '-' . $name;
+                    $old_val    = $old[$name] ?? '';
+                    $width_style = zippy_width_to_style($width);
+                    $req_attr   = $required ? 'required' : '';
+                    $req_star   = $required ? '<span class="zippy-form__required" aria-hidden="true">*</span>' : '';
+                    $has_error  = in_array($name, array_column($errors, 'field') ?: []);
+                    $field_class = 'zippy-form__field' . ( ! empty($field['class']) ? ' ' . esc_attr($field['class']) : '' );
+                    ?>
+
+                    <div class="<?php echo $field_class; ?>" <?php echo $width_style; ?>>
+                        <?php if ( $field_type !== 'checkbox' && ! empty($label) ) : ?>
+                        <label for="<?php echo esc_attr($field_id); ?>">
+                            <?php echo esc_html($label); ?><?php echo $req_star; ?>
+                        </label>
+                        <?php endif; ?>
+
+                        <?php
+                        switch ( $field_type ) {
+
+                            case 'textarea':
+                                printf(
+                                    '<textarea id="%s" name="%s" rows="%s" placeholder="%s" %s>%s</textarea>',
+                                    esc_attr($field_id),
+                                    esc_attr($name),
+                                    esc_attr($field['rows'] ?? '4'),
+                                    esc_attr($field['placeholder'] ?? $label),
+                                    $req_attr,
+                                    esc_textarea($old_val)
+                                );
+                                break;
+
+                            case 'select':
+                                $options = array_map('trim', explode(',', $field['options'] ?? ''));
+                                echo '<select id="' . esc_attr($field_id) . '" name="' . esc_attr($name) . '" ' . $req_attr . '>';
+                                echo '<option value="">' . esc_html($field['placeholder'] ?? 'Select...') . '</option>';
+                                foreach ( $options as $opt ) {
+                                    $selected = $old_val === $opt ? 'selected' : '';
+                                    echo '<option value="' . esc_attr($opt) . '" ' . $selected . '>' . esc_html($opt) . '</option>';
+                                }
+                                echo '</select>';
+                                break;
+
+                            case 'checkbox':
+                                $checked = $old_val ? 'checked' : '';
+                                printf(
+                                    '<label class="zippy-form__checkbox-wrap" for="%s">
+                                        <input type="checkbox" id="%s" name="%s" value="1" %s %s />
+                                        <span class="zippy-form__checkbox-custom"></span>
+                                        <span class="zippy-form__checkbox-label">%s%s</span>
+                                    </label>',
+                                    esc_attr($field_id),
+                                    esc_attr($field_id),
+                                    esc_attr($name),
+                                    $checked,
+                                    $req_attr,
+                                    esc_html($label),
+                                    $req_star
+                                );
+                                break;
+
+                            default:
+                                // text, email, tel, number, date, time, url
+                                $extra = '';
+                                if ( ! empty($field['min']) )  $extra .= ' min="'  . esc_attr($field['min'])  . '"';
+                                if ( ! empty($field['max']) )  $extra .= ' max="'  . esc_attr($field['max'])  . '"';
+                                if ( ! empty($field['step']) ) $extra .= ' step="' . esc_attr($field['step']) . '"';
+
+                                printf(
+                                    '<input type="%s" id="%s" name="%s" value="%s" placeholder="%s" %s %s />',
+                                    esc_attr($field['type'] ?? 'text'),
+                                    esc_attr($field_id),
+                                    esc_attr($name),
+                                    esc_attr($old_val ?: ($field['value'] ?? '')),
+                                    esc_attr($field['placeholder'] ?? $label),
+                                    $req_attr,
+                                    $extra
+                                );
+                                break;
+                        }
+                        ?>
+                    </div>
+
+                    <?php
+                    // Print remainder (text after token)
+                    if ( ! empty(trim($remainder)) ) {
+                        echo wp_kses_post($remainder);
+                    }
+
+                endforeach;
+                ?>
+            </div>
+
+            <!-- Submit -->
+            <div class="zippy-form__submit">
+                <button type="submit" class="zippy-form__submit-btn">
+                    <?php echo esc_html($atts['submit_text']); ?>
+                </button>
+            </div>
+
+        </form>
+
+        <script>
+        (function() {
+            var form = document.getElementById('<?php echo esc_js($uid); ?>');
+            if (!form) return;
+
+            // ── Live validation on blur ──
+            form.querySelectorAll('[required]').forEach(function(input) {
+                input.addEventListener('blur', function() { validateField(this); });
+                input.addEventListener('input', function() {
+                    if (this.closest('.zippy-form__field').classList.contains('has-error')) {
+                        validateField(this);
+                    }
+                });
+            });
+
+            function validateField(input) {
+                var field = input.closest('.zippy-form__field');
+                if (!field) return true;
+
+                var msg = '';
+                var val = input.value.trim();
+                var label = field.querySelector('label');
+                var labelText = label ? label.textContent.replace('*','').trim() : 'This field';
+
+                if (input.required && val === '' && input.type !== 'checkbox') {
+                    msg = labelText + ' is required.';
+                } else if (input.required && input.type === 'checkbox' && !input.checked) {
+                    msg = labelText + ' must be checked.';
+                } else if (input.type === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                    msg = 'Please enter a valid email address.';
+                } else if (input.type === 'tel' && val && !/^[+\d\s\-().]{7,}$/.test(val)) {
+                    msg = 'Please enter a valid phone number.';
+                }
+
+                field.classList.toggle('has-error', !!msg);
+
+                var errEl = field.querySelector('.zippy-field-error');
+                if (msg) {
+                    if (!errEl) {
+                        errEl = document.createElement('span');
+                        errEl.className = 'zippy-field-error';
+                        errEl.setAttribute('role', 'alert');
+                        field.appendChild(errEl);
+                    }
+                    errEl.textContent = msg;
+                } else if (errEl) {
+                    errEl.remove();
+                }
+
+                return !msg;
+            }
+
+            // ── Pre-submit ──
+            form.addEventListener('submit', function(e) {
+                var valid = true;
+                form.querySelectorAll('[required]').forEach(function(input) {
+                    if (!validateField(input)) valid = false;
+                });
+                if (!valid) {
+                    e.preventDefault();
+                    var first = form.querySelector('.has-error');
+                    if (first) first.scrollIntoView({ behavior:'smooth', block:'center' });
+                    return;
+                }
+                var btn = form.querySelector('.zippy-form__submit-btn');
+                if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+            });
+        })();
+        </script>
+        <?php endif; ?>
+
+    </div>
+
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('booking_form', 'zippy_booking_form');
+
+
+// ============================================================
+// Form Handler — runs on init (PRG pattern)
+// ============================================================
+add_action('init', function() {
+    if ( empty($_POST['zippy_form_id']) ) return;
+
+    $form_id = sanitize_key($_POST['zippy_form_id']);
+
+    if (
+        ! isset($_POST['zippy_form_nonce']) ||
+        ! wp_verify_nonce($_POST['zippy_form_nonce'], 'zippy_form_submit_' . $form_id)
+    ) return;
+
+    $recipient = sanitize_email($_POST['zippy_form_recipient'] ?? get_option('admin_email'));
+    $subject   = sanitize_text_field($_POST['zippy_form_subject'] ?? 'New Form Submission');
+    $fields    = json_decode(base64_decode($_POST['zippy_form_fields'] ?? ''), true) ?: [];
+
+    $errors  = [];
+    $old     = [];
+    $success = false;
+    $body    = '';
+
+    // ── Validate + collect values ──
+    foreach ( $fields as $field ) {
+        $name     = sanitize_key($field['name']);
+        $label    = $field['label'];
+        $type     = $field['type'];
+        $required = $field['required'];
+
+        if ( $type === 'checkbox' ) {
+            $value   = isset($_POST[$name]) ? 'Yes' : 'No';
+            $old[$name] = isset($_POST[$name]) ? '1' : '';
+            if ( $required && ! isset($_POST[$name]) ) {
+                $errors[] = $label . ' must be checked.';
+            }
+        } else {
+            $raw   = $_POST[$name] ?? '';
+            $value = sanitize_text_field($raw);
+            $old[$name] = $value;
+
+            if ( $required && $value === '' ) {
+                $errors[] = $label . ' is required.';
+                continue;
+            }
+
+            if ( $type === 'email' && $value && ! is_email($value) ) {
+                $errors[] = 'Please enter a valid email for ' . $label . '.';
+            }
+        }
+
+        $body .= $label . ': ' . $value . "\n";
+    }
+
+    // ── Send email ──
+    if ( empty($errors) ) {
+        $headers = [
+            'Content-Type: text/plain; charset=UTF-8',
+            'From: ' . get_bloginfo('name') . ' <' . get_option('admin_email') . '>',
+        ];
+
+        // Try to set reply-to from email field
+        foreach ( $fields as $field ) {
+            if ( $field['type'] === 'email' && ! empty($old[sanitize_key($field['name'])]) ) {
+                $headers[] = 'Reply-To: ' . $old[sanitize_key($field['name'])];
+                break;
+            }
+        }
+
+        $sent = wp_mail($recipient, '[' . get_bloginfo('name') . '] ' . $subject, $body, $headers);
+        $success = $sent;
+        if ( ! $sent ) $errors[] = 'Message could not be sent. Please try again.';
+    }
+
+    // ── PRG: store result in transient ──
+    $flash_key = 'zf_' . md5($form_id . time());
+    set_transient($flash_key, [ 'errors' => $errors, 'success' => $success, 'old' => $old ], 60);
+
+    $redirect = add_query_arg('zf', $flash_key, wp_get_referer() ?: get_permalink());
+    wp_safe_redirect($redirect);
+    exit;
+});

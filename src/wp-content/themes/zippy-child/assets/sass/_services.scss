@@ -19,7 +19,7 @@
     transition: box-shadow 0.2s ease, transform 0.2s ease;
 
     &:hover {
-        box-shadow: 0 8px 28px rgba(0,0,0,0.07);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.07);
         transform: translateY(-2px);
     }
 
@@ -45,7 +45,7 @@
     &__title {
         font-size: 20px;
         font-weight: 600;
-        color: #2d4a5a;     // dark teal — match your primary
+        color: #2d4a5a; // dark teal — match your primary
         margin: 0;
         line-height: 1.2;
     }
@@ -56,9 +56,9 @@
         line-height: 1.7;
         color: $primary-color;
         flex: 1;
-        
+
         display: -webkit-box;
-        -webkit-line-clamp: 5;
+        -webkit-line-clamp: 10;
         -webkit-box-orient: vertical;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -68,6 +68,7 @@
     &__footer {
         display: flex;
         align-items: center;
+        flex-wrap: wrap-reverse;
         justify-content: space-between;
         gap: 12px;
         margin-top: auto;
@@ -78,7 +79,7 @@
         display: inline-flex;
         align-items: center;
         padding: 10px 24px;
-        background: $fs-color-success;   // soft blue-grey
+        background: $fs-color-success; // soft blue-grey
         color: $white;
         border-radius: 50px;
         font-size: 14px;
@@ -102,7 +103,7 @@
     &__price-amount {
         font-size: 22px;
         font-weight: 700;
-        color: #c8901a;    // golden/amber — matches design
+        color: #c8901a; // golden/amber — matches design
     }
 
     &__price-unit {
@@ -115,4 +116,8 @@
 .zippy-services-empty {
     color: #aaa;
     font-size: 14px;
+}
+
+.services-list-columns {
+    color: $primary-color;
 }

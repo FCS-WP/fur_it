@@ -105,7 +105,8 @@ add_action('save_post_services', function ($post_id) {
 // ============================================================
 // SHORTCODE
 // ============================================================
-function services_shortcode( $atts ) {
+function services_shortcode($atts)
+{
     $atts = shortcode_atts([
         'category'       => '',       // service_category slug — required
         'columns'        => '3',
@@ -120,7 +121,7 @@ function services_shortcode( $atts ) {
         'show_icon'      => 'true',
         'class'          => '',
     ], $atts, 'services');
- 
+
     // ── Query ──
     $args = [
         'post_type'      => 'services',
@@ -129,82 +130,208 @@ function services_shortcode( $atts ) {
         'order'          => sanitize_key($atts['order']),
         'post_status'    => 'publish',
     ];
-                    
-    if ( ! empty($atts['category']) ) {
+
+    if (! empty($atts['category'])) {
         $args['tax_query'] = [[
             'taxonomy' => 'services_category',
             'field'    => 'slug',
             'terms'    => array_map('trim', explode(',', $atts['category'])),
         ]];
     }
- 
+
     $services = new WP_Query($args);
- 
-    if ( ! $services->have_posts() ) {
+
+    if (! $services->have_posts()) {
         return '<p class="zippy-services-empty">' . __('No services found.', 'flatsome-child') . '</p>';
     }
- 
+
     $uid   = 'zippy-services-' . uniqid();
-    $class = 'zippy-services-grid' . ( $atts['class'] ? ' ' . esc_attr($atts['class']) : '' );
- 
+    $class = 'zippy-services-grid' . ($atts['class'] ? ' ' . esc_attr($atts['class']) : '');
+
     ob_start();
-    ?>
- 
+?>
+
     <style>
-        #<?php echo $uid; ?> { grid-template-columns: repeat(<?php echo (int)$atts['columns']; ?>, 1fr); }
-        @media (max-width: 849px) { #<?php echo $uid; ?> { grid-template-columns: repeat(<?php echo (int)$atts['columns_tablet']; ?>, 1fr); } }
-        @media (max-width: 549px) { #<?php echo $uid; ?> { grid-template-columns: repeat(<?php echo (int)$atts['columns_mobile']; ?>, 1fr); } }
+        #<?php echo $uid; ?> {
+            grid-template-columns: repeat(<?php echo (int)$atts['columns']; ?>, 1fr);
+        }
+
+        @media (max-width: 849px) {
+            #<?php echo $uid; ?> {
+                grid-template-columns: repeat(<?php echo (int)$atts['columns_tablet']; ?>, 1fr);
+            }
+        }
+
+        @media (max-width: 549px) {
+            #<?php echo $uid; ?> {
+                grid-template-columns: repeat(<?php echo (int)$atts['columns_mobile']; ?>, 1fr);
+            }
+        }
     </style>
- 
+
     <div id="<?php echo $uid; ?>" class="<?php echo esc_attr($class); ?>">
- 
-        <?php while ( $services->have_posts() ) : $services->the_post();
+
+        <?php while ($services->have_posts()) : $services->the_post();
             $service_id = get_the_ID();
             $title      = get_the_title();
             $excerpt    = get_the_excerpt();
+            $content = get_the_content();
             $price      = get_post_meta($service_id, '_price',      true);
             $price_unit = get_post_meta($service_id, '_price_unit', true) ?: null;
             $icon  = get_post_meta(get_the_ID(), '_icon', true);
             $item_url   = get_post_meta($service_id, '_btn_url',    true) ?: $atts['btn_url'];
         ?>
- 
-        <div class="zippy-service-card-v2">
- 
-            <!-- Header: icon + title -->
-            <div class="zippy-service-card-v2__header">
-                <?php if ( $atts['show_icon'] === 'true' && ! empty($icon) ) : ?>
-                <div class="zippy-service-card-v2__icon">
-                    <img src="<?php echo esc_url($icon); ?>" alt="<?php echo esc_attr($title); ?>" />
+
+            <div class="zippy-service-card-v2">
+
+                <!-- Header: icon + title -->
+                <div class="zippy-service-card-v2__header">
+                    <?php if ($atts['show_icon'] === 'true' && ! empty($icon)) : ?>
+                        <div class="zippy-service-card-v2__icon">
+                            <img src="<?php echo esc_url($icon); ?>" alt="<?php echo esc_attr($title); ?>" />
+                        </div>
+                    <?php endif; ?>
+                    <h3 class="zippy-service-card-v2__title"><?php echo esc_html($title); ?></h3>
                 </div>
-                <?php endif; ?>
-                <h3 class="zippy-service-card-v2__title"><?php echo esc_html($title); ?></h3>
-            </div>
- 
-            <!-- Description -->
-            <div class="zippy-service-card-v2__desc">
-                <?php echo wp_kses_post($excerpt ?: wp_trim_words(get_the_content(), 20, '...')); ?>
-            </div>
- 
-            <!-- Footer: button + price -->
-            <div class="zippy-service-card-v2__footer">
-                <a href="<?php echo esc_url($item_url); ?>" class="zippy-service-card-v2__btn">
-                    <?php echo esc_html($atts['btn_text']); ?>
-                </a>
-                <?php if ( $atts['show_price'] === 'true' && ! empty($price) ) : ?>
-                <div class="zippy-service-card-v2__price">
-                    <span class="zippy-service-card-v2__price-amount"><?php echo esc_html($price); ?></span>
-                    <span class="zippy-service-card-v2__price-unit"><?php echo !empty($price_unit) ? ('/' . esc_html($price_unit)) : '' ?></span>
+
+                <!-- Description -->
+                <div class="zippy-service-card-v2__desc">
+                    <?php echo wpautop($content) ?>
                 </div>
-                <?php endif; ?>
+
+                <!-- Footer: button + price -->
+                <div class="zippy-service-card-v2__footer">
+                    <a href="<?php echo esc_url($item_url); ?>" class="zippy-service-card-v2__btn">
+                        <?php echo esc_html($atts['btn_text']); ?>
+                    </a>
+                    <?php if ($atts['show_price'] === 'true' && ! empty($price)) : ?>
+                        <div class="zippy-service-card-v2__price">
+                            <span class="zippy-service-card-v2__price-amount"><?php echo esc_html($price); ?></span>
+                            <span class="zippy-service-card-v2__price-unit"><?php echo !empty($price_unit) ? ('/' . esc_html($price_unit)) : '' ?></span>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
             </div>
- 
-        </div>
- 
-        <?php endwhile; wp_reset_postdata(); ?>
- 
+
+        <?php endwhile;
+        wp_reset_postdata(); ?>
+
     </div>
- 
-    <?php
+
+<?php
     return ob_get_clean();
 }
 add_shortcode('services', 'services_shortcode');
+
+function services_list_shortcode($atts)
+{
+
+    $atts = shortcode_atts([
+        'limit'    => -1,
+        'category' => '',
+        'columns'  => 2,
+    ], $atts);
+
+    $args = [
+        'post_type'      => 'services',
+        'posts_per_page' => (int) $atts['limit'],
+        'post_status'    => 'publish',
+        'orderby'        => 'menu_order',
+        'order'          => 'ASC',
+    ];
+
+    if (!empty($atts['category'])) {
+        $args['tax_query'] = [[
+            'taxonomy' => 'services_category',
+            'field'    => 'slug',
+            'terms'    => explode(',', $atts['category']),
+        ]];
+    }
+
+    $query = new WP_Query($args);
+
+    if (!$query->have_posts()) {
+        return '<p>No services found</p>';
+    }
+
+    // Convert posts to array
+    $items = [];
+    while ($query->have_posts()) {
+        $query->the_post();
+        $items[] = [
+            'title' => get_the_title(),
+            'price' => get_post_meta(get_the_ID(), '_price', true),
+        ];
+    }
+    wp_reset_postdata();
+
+    // Split into columns
+    $columns = (int) $atts['columns'];
+    $chunked = array_chunk($items, ceil(count($items) / $columns));
+
+    ob_start();
+?>
+
+    <div class="services-list-columns">
+
+        <?php foreach ($chunked as $col): ?>
+            <div class="services-col">
+
+                <?php foreach ($col as $item): ?>
+                    <div class="services-row">
+                        <div class="services-title"><?php echo esc_html($item['title']); ?></div>
+                        <div class="services-price"><?php echo esc_html($item['price']); ?></div>
+                    </div>
+                <?php endforeach; ?>
+
+            </div>
+        <?php endforeach; ?>
+
+    </div>
+
+    <style>
+        .services-list-columns {
+            display: grid;
+            grid-template-columns: repeat(<?php echo $columns; ?>, 1fr);
+            gap: 4rem;
+        }
+
+        /* Tablet */
+        @media (max-width: 849px) {
+            .services-list-columns {
+                gap: 2rem;
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Mobile */
+        @media (max-width: 549px) {
+            .services-list-columns {
+                gap: 1rem;
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .services-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px dashed #ddd;
+        }
+
+        .services-title {
+            font-weight: 500;
+        }
+
+        .services-price {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+    </style>
+
+<?php
+    return ob_get_clean();
+}
+add_shortcode('services_list', 'services_list_shortcode');
