@@ -7,13 +7,11 @@
  */
 
 use Automattic\WooCommerce\Admin\Features\Features;
-use Automattic\WooCommerce\Admin\PageController;
 use Automattic\WooCommerce\Internal\Admin\Marketplace;
 use Automattic\WooCommerce\Internal\Admin\Orders\COTRedirectionController;
 use Automattic\WooCommerce\Internal\Admin\Orders\PageController as Custom_Orders_PageController;
 use Automattic\WooCommerce\Internal\Admin\Logging\PageController as LoggingPageController;
 use Automattic\WooCommerce\Internal\Admin\Logging\FileV2\{ FileListTable, SearchListTable };
-use Automattic\WooCommerce\Internal\Admin\WCAdminAssets;
 use Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController;
 use Automattic\WooCommerce\Utilities\FeaturesUtil;
 
@@ -58,14 +56,10 @@ class WC_Admin_Menus {
 		 * @param bool $show_addons_page If the addons page should be included.
 		 */
 		if ( apply_filters( 'woocommerce_show_addons_page', true ) ) {
-			if ( FeaturesUtil::feature_is_enabled( 'marketplace' ) ) {
-				$container = wc_get_container();
-				$container->get( Marketplace::class );
+			$container = wc_get_container();
+			$container->get( Marketplace::class );
 
-				add_action( 'admin_menu', array( $this, 'addons_my_subscriptions' ), 70 );
-			} else {
-				add_action( 'admin_menu', array( $this, 'addons_menu' ), 70 );
-			}
+			add_action( 'admin_menu', array( $this, 'addons_my_subscriptions' ), 70 );
 		}
 
 		add_filter( 'menu_order', array( $this, 'menu_order' ) );
@@ -86,11 +80,13 @@ class WC_Admin_Menus {
 
 	/**
 	 * Add menu items.
+	 *
+	 * @return void
 	 */
 	public function admin_menu() {
 		global $menu, $admin_page_hooks;
 
-		$woocommerce_icon = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPjxwYXRoIGZpbGw9IiNhMmFhYjIiIGQ9Ik02MTIuMTkyIDQyNi4zMzZjMC02Ljg5Ni0zLjEzNi01MS42LTI4LTUxLjYtMzcuMzYgMC00Ni43MDQgNzIuMjU2LTQ2LjcwNCA4Mi42MjQgMCAzLjQwOCAzLjE1MiA1OC40OTYgMjguMDMyIDU4LjQ5NiAzNC4xOTItLjAzMiA0Ni42NzItNzIuMjg4IDQ2LjY3Mi04OS41MnptMjAyLjE5MiAwYzAtNi44OTYtMy4xNTItNTEuNi0yOC4wMzItNTEuNi0zNy4yOCAwLTQ2LjYwOCA3Mi4yNTYtNDYuNjA4IDgyLjYyNCAwIDMuNDA4IDMuMDcyIDU4LjQ5NiAyNy45NTIgNTguNDk2IDM0LjE5Mi0uMDMyIDQ2LjY4OC03Mi4yODggNDYuNjg4LTg5LjUyek0xNDEuMjk2Ljc2OGMtNjguMjI0IDAtMTIzLjUwNCA1NS40ODgtMTIzLjUwNCAxMjMuOTJ2NjUwLjcyYzAgNjguNDMyIDU1LjI5NiAxMjMuOTIgMTIzLjUwNCAxMjMuOTJoMzM5LjgwOGwxMjMuNTA0IDEyMy45MzZWODk5LjMyOGgyNzguMDQ4YzY4LjIyNCAwIDEyMy41Mi01NS40NzIgMTIzLjUyLTEyMy45MnYtNjUwLjcyYzAtNjguNDMyLTU1LjI5Ni0xMjMuOTItMTIzLjUyLTEyMy45MmgtNzQxLjM2em01MjYuODY0IDQyMi4xNmMwIDU1LjA4OC0zMS4wODggMTU0Ljg4LTEwMi42NCAxNTQuODgtNi4yMDggMC0xOC40OTYtMy42MTYtMjUuNDI0LTYuMDE2LTMyLjUxMi0xMS4xNjgtNTAuMTkyLTQ5LjY5Ni01Mi4zNTItNjYuMjU2IDAgMC0zLjA3Mi0xNy43OTItMy4wNzItNDAuNzUyIDAtMjIuOTkyIDMuMDcyLTQ1LjMyOCAzLjA3Mi00NS4zMjggMTUuNTUyLTc1LjcyOCA0My41NTItMTA2LjczNiA5Ni40NDgtMTA2LjczNiA1OS4wNzItLjAzMiA4My45NjggNTguNTI4IDgzLjk2OCAxMTAuMjA4ek00ODYuNDk2IDMwMi40YzAgMy4zOTItNDMuNTUyIDE0MS4xNjgtNDMuNTUyIDIxMy40MjR2NzUuNzEyYy0yLjU5MiAxMi4wOC00LjE2IDI0LjE0NC0yMS44MjQgMjQuMTQ0LTQ2LjYwOCAwLTg4Ljg4LTE1MS40NzItOTIuMDE2LTE2MS44NC02LjIwOCA2Ljg5Ni02Mi4yNCAxNjEuODQtOTYuNDQ4IDE2MS44NC0yNC44NjQgMC00My41NTItMTEzLjY0OC00Ni42MDgtMTIzLjkzNkMxNzYuNzA0IDQzNi42NzIgMTYwIDMzNC4yMjQgMTYwIDMyNy4zMjhjMC0yMC42NzIgMS4xNTItMzguNzM2IDI2LjA0OC0zOC43MzYgNi4yMDggMCAyMS42IDYuMDY0IDIzLjcxMiAxNy4xNjggMTEuNjQ4IDYyLjAzMiAxNi42ODggMTIwLjUxMiAyOS4xNjggMTg1Ljk2OCAxLjg1NiAyLjkyOCAxLjUwNCA3LjAwOCA0LjU2IDEwLjQzMiAzLjE1Mi0xMC4yODggNjYuOTI4LTE2OC43ODQgOTQuOTYtMTY4Ljc4NCAyMi41NDQgMCAzMC40IDQ0LjU5MiAzMy41MzYgNjEuODI0IDYuMjA4IDIwLjY1NiAxMy4wODggNTUuMjE2IDIyLjQxNiA4Mi43NTIgMC0xMy43NzYgMTIuNDgtMjAzLjEyIDY1LjM5Mi0yMDMuMTIgMTguNTkyLjAzMiAyNi43MDQgNi45MjggMjYuNzA0IDI3LjU2OHpNODcwLjMyIDQyMi45MjhjMCA1NS4wODgtMzEuMDg4IDE1NC44OC0xMDIuNjQgMTU0Ljg4LTYuMTkyIDAtMTguNDQ4LTMuNjE2LTI1LjQyNC02LjAxNi0zMi40MzItMTEuMTY4LTUwLjE3Ni00OS42OTYtNTIuMjg4LTY2LjI1NiAwIDAtMy44ODgtMTcuOTItMy44ODgtNDAuODk2czMuODg4LTQ1LjE4NCAzLjg4OC00NS4xODRjMTUuNTUyLTc1LjcyOCA0My40ODgtMTA2LjczNiA5Ni4zODQtMTA2LjczNiA1OS4xMDQtLjAzMiA4My45NjggNTguNTI4IDgzLjk2OCAxMTAuMjA4eiIvPjwvc3ZnPg==';
+		$woocommerce_icon = 'data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDg1LjkgNDcuNiI+CjxwYXRoIGZpbGw9IiNhMmFhYjIiIGQ9Ik03Ny40LDAuMWMtNC4zLDAtNy4xLDEuNC05LjYsNi4xTDU2LjQsMjcuN1Y4LjZjMC01LjctMi43LTguNS03LjctOC41cy03LjEsMS43LTkuNiw2LjVMMjguMywyNy43VjguOAoJYzAtNi4xLTIuNS04LjctOC42LTguN0g3LjNDMi42LDAuMSwwLDIuMywwLDYuM3MyLjUsNi40LDcuMSw2LjRoNS4xdjI0LjFjMCw2LjgsNC42LDEwLjgsMTEuMiwxMC44UzMzLDQ1LDM2LjMsMzguOWw3LjItMTMuNXYxMS40CgljMCw2LjcsNC40LDEwLjgsMTEuMSwxMC44czkuMi0yLjMsMTMtOC43bDE2LjYtMjhjMy42LTYuMSwxLjEtMTAuOC02LjktMTAuOEM3Ny4zLDAuMSw3Ny4zLDAuMSw3Ny40LDAuMXoiLz4KPC9zdmc+Cg==';
 
 		if ( self::can_view_woocommerce_menu_item() ) {
 			$menu[] = array( '', 'read', 'separator-woocommerce', '', 'wp-menu-separator woocommerce' ); // WPCS: override ok.
@@ -107,6 +103,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Add menu item.
+	 *
+	 * @return void
 	 */
 	public function reports_menu() {
 		if ( self::can_view_woocommerce_menu_item() ) {
@@ -118,15 +116,26 @@ class WC_Admin_Menus {
 
 	/**
 	 * Add menu item.
+	 *
+	 * @return void
 	 */
 	public function settings_menu() {
-		$settings_page = add_submenu_page( 'woocommerce', __( 'WooCommerce settings', 'woocommerce' ), __( 'Settings', 'woocommerce' ), 'manage_woocommerce', 'wc-settings', array( $this, 'settings_page' ) );
+		$settings_page = add_submenu_page(
+			'woocommerce',
+			__( 'WooCommerce settings', 'woocommerce' ),
+			__( 'Settings', 'woocommerce' ),
+			'manage_woocommerce',
+			'wc-settings',
+			array( $this, 'settings_page' )
+		);
 
 		add_action( 'load-' . $settings_page, array( $this, 'settings_page_init' ) );
 	}
 
 	/**
 	 * Check if the user can access the top-level WooCommerce item.
+	 *
+	 * @return bool
 	 */
 	public static function can_view_woocommerce_menu_item() {
 		return current_user_can( 'edit_others_shop_orders' );
@@ -134,6 +143,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Loads gateways and shipping methods into memory for use within settings.
+	 *
+	 * @return void
 	 */
 	public function settings_page_init() {
 		WC()->payment_gateways();
@@ -163,7 +174,7 @@ class WC_Admin_Menus {
 		global $current_tab, $current_section;
 
 		// We should only save on the settings page.
-		if ( ! is_admin() || ! isset( $_GET['page'] ) || 'wc-settings' !== $_GET['page'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! is_wc_admin_settings_page() ) {
 			return;
 		}
 
@@ -184,6 +195,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Add menu item.
+	 *
+	 * @return void
 	 */
 	public function status_menu() {
 		$status_page = add_submenu_page( 'woocommerce', __( 'WooCommerce status', 'woocommerce' ), __( 'Status', 'woocommerce' ), 'manage_woocommerce', 'wc-status', array( $this, 'status_page' ) );
@@ -202,8 +215,14 @@ class WC_Admin_Menus {
 
 	/**
 	 * Addons menu item.
+	 *
+	 * @deprecated 10.5.0 The marketplace feature is now always enabled. Use the Extensions menu instead.
+	 *
+	 * @return void
 	 */
 	public function addons_menu() {
+		wc_deprecated_function( __METHOD__, '10.5.0' );
+
 		$count_html = WC_Helper_Updater::get_updates_count_html();
 		/* translators: %s: extensions count */
 		$menu_title = sprintf( __( 'Extensions %s', 'woocommerce' ), $count_html );
@@ -224,6 +243,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Highlights the correct top level admin menu item for post type add screens.
+	 *
+	 * @return void
 	 */
 	public function menu_highlight() {
 		global $parent_file, $submenu_file, $post_type;
@@ -245,6 +266,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Adds the order processing count to the menu.
+	 *
+	 * @return void
 	 */
 	public function menu_order_count() {
 		global $submenu;
@@ -260,7 +283,7 @@ class WC_Admin_Menus {
 				if ( $order_count ) {
 					foreach ( $submenu['woocommerce'] as $key => $menu_item ) {
 						if ( 0 === strpos( $menu_item[0], _x( 'Orders', 'Admin menu name', 'woocommerce' ) ) ) {
-							$submenu['woocommerce'][ $key ][0] .= ' <span class="awaiting-mod update-plugins count-' . esc_attr( $order_count ) . '"><span class="processing-count">' . number_format_i18n( $order_count ) . '</span></span>'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+							$submenu['woocommerce'][ $key ][0] .= ' <span class="menu-counter count-' . esc_attr( $order_count ) . '"><span class="processing-count">' . number_format_i18n( $order_count ) . '</span></span>'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 							break;
 						}
 					}
@@ -319,6 +342,7 @@ class WC_Admin_Menus {
 	 * @param bool|int $status Screen option value. Default false to skip.
 	 * @param string   $option The option name.
 	 * @param int      $value  The number of rows to use.
+	 * @return bool|int
 	 */
 	public function set_screen_option( $status, $option, $value ) {
 		$screen_options = array(
@@ -338,6 +362,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the reports page.
+	 *
+	 * @return void
 	 */
 	public function reports_page() {
 		WC_Admin_Reports::output();
@@ -345,13 +371,21 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the settings page.
+	 *
+	 * @return void
 	 */
 	public function settings_page() {
-		WC_Admin_Settings::output();
+		if ( Features::is_enabled( 'settings' ) ) {
+			echo '<div id="wc-settings-page"/>';
+		} else {
+			WC_Admin_Settings::output();
+		}
 	}
 
 	/**
 	 * Init the attributes page.
+	 *
+	 * @return void
 	 */
 	public function attributes_page() {
 		WC_Admin_Attributes::output();
@@ -359,6 +393,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the status page.
+	 *
+	 * @return void
 	 */
 	public function status_page() {
 		WC_Admin_Status::output();
@@ -366,6 +402,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Init the addons page.
+	 *
+	 * @return void
 	 */
 	public function addons_page() {
 		WC_Admin_Addons::handle_legacy_marketplace_redirects();
@@ -388,6 +426,8 @@ class WC_Admin_Menus {
 	 * Add custom nav meta box.
 	 *
 	 * Adapted from http://www.johnmorrisonline.com/how-to-add-a-fully-functional-custom-meta-box-to-wordpress-navigation-menus/.
+	 *
+	 * @return void
 	 */
 	public function add_nav_menu_meta_boxes() {
 		add_meta_box( 'woocommerce_endpoints_nav_link', __( 'WooCommerce endpoints', 'woocommerce' ), array( $this, 'nav_menu_links' ), 'nav-menus', 'side', 'low' );
@@ -395,6 +435,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Output menu links.
+	 *
+	 * @return void
 	 */
 	public function nav_menu_links() {
 		// Get items from account menu.
@@ -405,8 +447,10 @@ class WC_Admin_Menus {
 			unset( $endpoints['dashboard'] );
 		}
 
-		// Include missing lost password.
-		$endpoints['lost-password'] = __( 'Lost password', 'woocommerce' );
+		// Include missing lost password endpoint, if set in WooCommerce > Settings > Advanced > Account endpoints.
+		if ( ! empty( get_option( 'woocommerce_myaccount_lost_password_endpoint' ) ) ) {
+			$endpoints['lost-password'] = __( 'Lost password', 'woocommerce' );
+		}
 
 		$endpoints = apply_filters( 'woocommerce_custom_nav_menu_items', $endpoints );
 
@@ -454,6 +498,7 @@ class WC_Admin_Menus {
 	 *
 	 * @since 2.4.0
 	 * @param WP_Admin_Bar $wp_admin_bar Admin bar instance.
+	 * @return void
 	 */
 	public function admin_bar_menus( $wp_admin_bar ) {
 		if ( ! is_admin() || ! is_admin_bar_showing() ) {
@@ -483,6 +528,8 @@ class WC_Admin_Menus {
 
 	/**
 	 * Maybe add new management product experience.
+	 *
+	 * @return void
 	 */
 	public function maybe_add_new_product_management_experience() {
 		if ( FeaturesUtil::feature_is_enabled( 'product_block_editor' ) ) {
@@ -539,6 +586,7 @@ class WC_Admin_Menus {
 	 * @param int    $index The position of a submenu item in the submenu array.
 	 * @param string $parent_slug The parent slug.
 	 * @param array  $item The submenu item.
+	 * @return void
 	 */
 	public function hide_submenu_element( $index, $parent_slug, $item ) {
 		global $submenu;

@@ -60,6 +60,13 @@ class OrdersTableQuery {
 	private $args = array();
 
 	/**
+	 * Original query vars used to build this query.
+	 *
+	 * @var array
+	 */
+	private $query_args = array();
+
+	/**
 	 * Columns to be selected in the SELECT clause.
 	 *
 	 * @var array
@@ -193,7 +200,8 @@ class OrdersTableQuery {
 		$this->suppress_filters = array_key_exists( 'suppress_filters', $args ) ? (bool) $args['suppress_filters'] : false;
 		unset( $args['suppress_filters'] );
 
-		$this->args = $args;
+		$this->args       = $args;
+		$this->query_args = $args; // Keep a copy of the original vars used to initialize the query.
 
 		// TODO: args to be implemented.
 		unset( $this->args['customer_note'], $this->args['name'] );
@@ -228,7 +236,7 @@ class OrdersTableQuery {
 		 *     @type int   $max_num_pages The number of pages.
 		 * }
 		 * @param OrdersTableQuery   $query The OrdersTableQuery instance.
-		 * @param string             $sql The OrdersTableQuery instance.
+		 * @param string             $sql   Fully built SQL query.
 		 */
 		$pre_query = apply_filters( 'woocommerce_hpos_pre_query', null, $this, $this->sql );
 		if ( ! $pre_query || ! isset( $pre_query[0] ) || ! is_array( $pre_query[0] ) ) {
@@ -336,11 +344,11 @@ class OrdersTableQuery {
 	 * Generates a `WP_Date_Query` compatible query from a given date.
 	 * YYYY-MM-DD queries have 'day' precision for backwards compatibility.
 	 *
-	 * @param mixed  $date The date. Can be a {@see \WC_DateTime}, a timestamp or a string.
+	 * @param mixed $date The date. Can be a {@see \WC_DateTime}, a timestamp or a string.
 	 * @return array An array with keys 'year', 'month', 'day' and possibly 'hour', 'minute' and 'second'.
 	 */
 	private function date_to_date_query_arg( $date ): array {
-		$result    = array(
+		$result = array(
 			'year'  => '',
 			'month' => '',
 			'day'   => '',
@@ -351,7 +359,7 @@ class OrdersTableQuery {
 			$date      = new \WC_DateTime( "@{$date}", new \DateTimeZone( 'UTC' ) );
 			$precision = 'second';
 		} elseif ( ! is_a( $date, 'WC_DateTime' ) ) {
-			// For backwards compat (see https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#date)
+			// For backwards compat (see https://developer.woocommerce.com/docs/extensions/core-concepts/wc-get-orders/#date)
 			// only YYYY-MM-DD is considered for date values. Timestamps do support second precision.
 			$date      = wc_string_to_datetime( date( 'Y-m-d', strtotime( $date ) ) );
 			$precision = 'day';
@@ -373,21 +381,23 @@ class OrdersTableQuery {
 	/**
 	 * Returns UTC-based date query arguments for a combination of local time dates and a date shorthand operator.
 	 *
-	 * @param  array $dates_raw Array of dates (in local time) to use in combination with the operator.
+	 * @param  array  $dates_raw Array of dates (in local time) to use in combination with the operator.
 	 * @param  string $operator One of the operators supported by date queries (<, <=, =, ..., >, >=).
 	 * @return array Partial date query arg with relevant dates now UTC-based.
+	 *
+	 * @throws \Exception If an invalid date shorthand operator is specified.
 	 *
 	 * @since 8.2.0
 	 */
 	private function local_time_to_gmt_date_query( $dates_raw, $operator ) {
 		$result = array();
 
-		// Convert YYYY-MM-DD to UTC timestamp. Per https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#date only date is relevant (time is ignored).
+		// Convert YYYY-MM-DD to UTC timestamp. Per https://developer.woocommerce.com/docs/extensions/core-concepts/wc-get-orders/#date only date is relevant (time is ignored).
 		foreach ( $dates_raw as &$raw_date ) {
 			$raw_date = is_numeric( $raw_date ) ? $raw_date : strtotime( get_gmt_from_date( date( 'Y-m-d', strtotime( $raw_date ) ) ) );
 		}
 
-		$date1  = end( $dates_raw );
+		$date1 = end( $dates_raw );
 
 		switch ( $operator ) {
 			case '>':
@@ -410,9 +420,9 @@ class OrdersTableQuery {
 						'inclusive' => true,
 					),
 					array(
-						'before'     => $this->date_to_date_query_arg( $date1 + DAY_IN_SECONDS ),
-						'inclusive'  => false,
-					)
+						'before'    => $this->date_to_date_query_arg( $date1 + DAY_IN_SECONDS ),
+						'inclusive' => false,
+					),
 				);
 				break;
 			case '<=':
@@ -474,7 +484,6 @@ class OrdersTableQuery {
 		foreach ( $date_keys as $date_key ) {
 			$is_local   = in_array( $date_key, $local_date_keys, true );
 			$date_value = $this->args[ $date_key ];
-
 			$operator   = '=';
 			$dates_raw  = array();
 			$dates      = array();
@@ -499,7 +508,7 @@ class OrdersTableQuery {
 				$date_key = $local_to_gmt_date_keys[ $date_key ];
 
 				if ( ! is_numeric( $dates_raw[0] ) && ( ! isset( $dates_raw[1] ) || ! is_numeric( $dates_raw[1] ) ) ) {
-					// Only non-numeric args can be considered local time. Timestamps are assumed to be UTC per https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#date.
+					// Only non-numeric args can be considered local time. Timestamps are assumed to be UTC per https://developer.woocommerce.com/docs/extensions/core-concepts/wc-get-orders/#date.
 					$date_queries[] = array_merge(
 						array(
 							'column' => $date_key,
@@ -646,7 +655,7 @@ class OrdersTableQuery {
 
 		array_walk_recursive(
 			$this->args['date_query'],
-			function( &$value, $key ) use ( $legacy_columns, $table_mapping, $wpdb ) {
+			function ( &$value, $key ) use ( $legacy_columns, $table_mapping, $wpdb ) {
 				if ( 'column' !== $key ) {
 					return;
 				}
@@ -678,33 +687,42 @@ class OrdersTableQuery {
 	 * @return void
 	 */
 	private function sanitize_status(): void {
-		// Sanitize status.
 		$valid_statuses = array_keys( wc_get_order_statuses() );
 
-		if ( empty( $this->args['status'] ) || 'any' === $this->args['status'] ) {
-			$this->args['status'] = $valid_statuses;
-		} elseif ( 'all' === $this->args['status'] ) {
+		if ( empty( $this->args['status'] ) ) {
 			$this->args['status'] = array();
-		} else {
-			$this->args['status'] = is_array( $this->args['status'] ) ? $this->args['status'] : array( $this->args['status'] );
-
-			foreach ( $this->args['status'] as &$status ) {
-				$status = in_array( 'wc-' . $status, $valid_statuses, true ) ? 'wc-' . $status : $status;
-			}
-
-			$this->args['status'] = array_unique( array_filter( $this->args['status'] ) );
 		}
+
+		if ( ! is_array( $this->args['status'] ) ) {
+			$this->args['status'] = array( $this->args['status'] );
+		}
+
+		if ( empty( $this->args['status'] ) || in_array( 'any', $this->args['status'], true ) ) {
+			// Querying for 'any' status or empty status, filter to valid statuses from wc_get_order_statuses().
+			$this->args['status'] = $valid_statuses;
+		} elseif ( in_array( 'all', $this->args['status'], true ) ) {
+			// Querying for 'all' status does not filter by status at all.
+			$this->args['status'] = array();
+		}
+
+		foreach ( $this->args['status'] as &$status ) {
+			$status = in_array( 'wc-' . $status, $valid_statuses, true ) ? 'wc-' . $status : $status;
+		}
+
+		$this->args['status'] = array_unique( array_filter( $this->args['status'] ) );
 	}
 
 	/**
 	 * Parses and sanitizes the 'orderby' query var.
 	 *
-	 * @return void
+	 * @param string|array $orderby The unsanitized orderby param which can be a string or an array of orderby keys and direction (ASC, DESC).
+	 * @return string|array The sanitized orderby param which can be a string or an array of orderby keys and direction (ASC, DESC).
 	 */
-	private function sanitize_order_orderby(): void {
-		// Allowed keys.
-		// TODO: rand, meta keys, etc.
-		$allowed_keys = array( 'ID', 'id', 'type', 'date', 'modified', 'parent' );
+	private function sanitize_order_orderby( $orderby ) {
+		// No need to sanitize, will be processed in calling function.
+		if ( 'include' === $orderby || 'post__in' === $orderby || 'none' === $orderby ) {
+			return $orderby;
+		}
 
 		// Translate $orderby to a valid field.
 		$mapping = array(
@@ -720,18 +738,10 @@ class OrdersTableQuery {
 			'order_total'   => "{$this->tables['orders']}.total_amount",
 		);
 
-		$order   = $this->args['order'] ?? '';
-		$orderby = $this->args['orderby'] ?? '';
+		$order           = $this->sanitize_order( $this->args['order'] ?? '' );
+		$allowed_orderby = array_merge( array_keys( $mapping ), array_values( $mapping ), $this->meta_query ? $this->meta_query->get_orderby_keys() : array() );
 
-		if ( 'none' === $orderby ) {
-			return;
-		}
-
-		// No need to sanitize, will be processed in calling function.
-		if ( 'include' === $orderby || 'post__in' === $orderby ) {
-			return;
-		}
-
+		// Convert string orderby to an array of orderby keys and direction (ASC, DESC).
 		if ( is_string( $orderby ) ) {
 			$orderby_fields = array_map( 'trim', explode( ' ', $orderby ) );
 			$orderby        = array();
@@ -740,13 +750,8 @@ class OrdersTableQuery {
 			}
 		}
 
-		$allowed_orderby = array_merge(
-			array_keys( $mapping ),
-			array_values( $mapping ),
-			$this->meta_query ? $this->meta_query->get_orderby_keys() : array()
-		);
+		$sanitized_orderby = array();
 
-		$this->args['orderby'] = array();
 		foreach ( $orderby as $order_key => $order ) {
 			if ( ! in_array( $order_key, $allowed_orderby, true ) ) {
 				continue;
@@ -756,8 +761,10 @@ class OrdersTableQuery {
 				$order_key = $mapping[ $order_key ];
 			}
 
-			$this->args['orderby'][ $order_key ] = $this->sanitize_order( $order );
+			$sanitized_orderby[ $order_key ] = $this->sanitize_order( $order );
 		}
+
+		return $sanitized_orderby;
 	}
 
 	/**
@@ -835,7 +842,9 @@ class OrdersTableQuery {
 		// WHERE.
 		$where = '1=1';
 		foreach ( $this->where as $_where ) {
-			$where .= " AND ({$_where})";
+			if ( strlen( $_where ) > 0 ) {
+				$where .= " AND ({$_where})";
+			}
 		}
 
 		// ORDER BY.
@@ -918,8 +927,13 @@ class OrdersTableQuery {
 		if ( ! isset( $this->sql ) || '' === $this->sql ) {
 			wc_doing_it_wrong( __FUNCTION__, 'Count query can only be build after main query is built.', '7.3.0' );
 		}
-		$orders_table    = $this->tables['orders'];
-		$this->count_sql = "SELECT COUNT(DISTINCT $fields) FROM  $orders_table $join WHERE $where";
+		$orders_table = $this->tables['orders'];
+		$count_fields = "COUNT(DISTINCT $fields)";
+		if ( "{$orders_table}.id" === $fields && '' === $join ) {
+			// DISTINCT adds performance overhead, exclude the DISTINCT function when confident it is not needed.
+			$count_fields = 'COUNT(*)';
+		}
+		$this->count_sql = "SELECT $count_fields FROM $orders_table $join WHERE $where";
 
 		if ( ! $this->suppress_filters ) {
 			/**
@@ -1066,7 +1080,7 @@ class OrdersTableQuery {
 			$operator = 'NOT IN';
 		}
 
-		if ( ! in_array( $operator, array( '=', '!=', 'IN', 'NOT IN' ), true ) ) {
+		if ( ! in_array( $operator, array( '=', '!=', 'IN', 'NOT IN', '>', '>=', '<', '<=' ), true ) ) {
 			return false;
 		}
 
@@ -1105,7 +1119,6 @@ class OrdersTableQuery {
 				'tax_amount',
 				'customer_id',
 				'billing_email',
-				'total_amount',
 				'parent_order_id',
 				'payment_method',
 				'payment_method_title',
@@ -1134,6 +1147,25 @@ class OrdersTableQuery {
 
 			if ( $customer_query ) {
 				$this->where[] = $customer_query;
+			}
+		}
+
+		// Handle total filtering with operators.
+		if ( $this->arg_isset( 'total_amount' ) ) {
+			$total_param = $this->args['total_amount'];
+
+			// If it's a simple number, convert to array format.
+			if ( is_numeric( $total_param ) ) {
+				$total_param = array(
+					'value'    => $total_param,
+					'operator' => '=',
+				);
+			}
+
+			$total_query = $this->generate_total_query( (array) $total_param );
+
+			if ( $total_query ) {
+				$this->where[] = $total_query;
 			}
 		}
 	}
@@ -1173,6 +1205,48 @@ class OrdersTableQuery {
 		}
 
 		return $pieces ? implode( " $relation ", $pieces ) : '';
+	}
+
+	/**
+	 * Generate SQL conditions for the 'total' query with operators.
+	 *
+	 * @param array $total_params Total query parameters with value, operator.
+	 * @return string SQL to be used in a WHERE clause.
+	 */
+	private function generate_total_query( array $total_params ): string {
+		if ( ! isset( $total_params['value'] ) ) {
+			return '';
+		}
+
+		$operator            = $total_params['operator'] ?? '=';
+		$value               = $total_params['value'];
+		$supported_operators = array( '=', '!=', '>', '>=', '<', '<=', 'BETWEEN', 'NOT BETWEEN' );
+
+		if ( ! in_array( $operator, $supported_operators, true ) ) {
+			return '';
+		}
+
+		// Handle between operators.
+		if ( 'BETWEEN' === $operator || 'NOT BETWEEN' === $operator ) {
+			if ( ! is_array( $value ) || count( $value ) !== 2 ) {
+				return '';
+			}
+			$value1 = wc_format_decimal( $value[0], wc_get_price_decimals() );
+			$value2 = wc_format_decimal( $value[1], wc_get_price_decimals() );
+
+			if ( 'BETWEEN' === $operator ) {
+				return $this->where( $this->tables['orders'], 'total_amount', '>=', $value1, 'decimal' ) . ' AND ' . $this->where( $this->tables['orders'], 'total_amount', '<=', $value2, 'decimal' );
+			} else {
+				return '(' . $this->where( $this->tables['orders'], 'total_amount', '<', $value1, 'decimal' ) . ' OR ' . $this->where( $this->tables['orders'], 'total_amount', '>', $value2, 'decimal' ) . ')';
+			}
+		}
+
+		// Handle other operators - value must be a single number.
+		if ( ! is_numeric( $value ) ) {
+			return '';
+		}
+
+		return $this->where( $this->tables['orders'], 'total_amount', $operator, wc_format_decimal( $value, wc_get_price_decimals() ), 'decimal' );
 	}
 
 	/**
@@ -1270,15 +1344,11 @@ class OrdersTableQuery {
 	 */
 	private function process_orderby(): void {
 		// 'order' and 'orderby' vars.
-		$this->args['order'] = $this->sanitize_order( $this->args['order'] ?? '' );
-		$this->sanitize_order_orderby();
+		$order   = $this->sanitize_order( $this->args['order'] ?? '' );
+		$orderby = $this->sanitize_order_orderby( $this->args['orderby'] ?? 'none' );
 
-		$orderby = $this->args['orderby'];
-
-		if ( 'none' === $orderby ) {
-			$this->orderby = '';
-			return;
-		}
+		// Set orderby to an empty array by default. This will also be used if sanitize_order_orderby recieved "none".
+		$this->orderby = array();
 
 		if ( 'include' === $orderby || 'post__in' === $orderby ) {
 			$ids = $this->args['id'] ?? $this->args['includes'];
@@ -1290,18 +1360,20 @@ class OrdersTableQuery {
 			return;
 		}
 
-		$meta_orderby_keys = $this->meta_query ? $this->meta_query->get_orderby_keys() : array();
+		if ( is_array( $orderby ) ) {
+			$meta_orderby_keys = $this->meta_query ? $this->meta_query->get_orderby_keys() : array();
+			$orderby_array     = array();
 
-		$orderby_array = array();
-		foreach ( $this->args['orderby'] as $_orderby => $order ) {
-			if ( in_array( $_orderby, $meta_orderby_keys, true ) ) {
-				$_orderby = $this->meta_query->get_orderby_clause_for_key( $_orderby );
+			foreach ( $orderby as $_orderby => $order ) {
+				if ( in_array( $_orderby, $meta_orderby_keys, true ) ) {
+					$_orderby = $this->meta_query->get_orderby_clause_for_key( $_orderby );
+				}
+
+				$orderby_array[] = "{$_orderby} {$order}";
 			}
 
-			$orderby_array[] = "{$_orderby} {$order}";
+			$this->orderby = $orderby_array;
 		}
-
-		$this->orderby = $orderby_array;
 	}
 
 	/**
@@ -1348,7 +1420,7 @@ class OrdersTableQuery {
 		$this->orders = array_map( 'absint', $wpdb->get_col( $this->sql ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 
 		// Set max_num_pages and found_orders if necessary.
-		if ( ( $this->arg_isset( 'no_found_rows' ) && ! $this->args['no_found_rows'] ) || empty( $this->orders ) ) {
+		if ( ( $this->arg_isset( 'no_found_rows' ) && $this->args['no_found_rows'] ) || empty( $this->orders ) ) {
 			return;
 		}
 
@@ -1478,4 +1550,13 @@ class OrdersTableQuery {
 		return $result;
 	}
 
+	/**
+	 * Return the query args that were used to initialize the query.
+	 *
+	 * @since 9.8.0
+	 * @return array Query args.
+	 */
+	public function get_query_args(): array {
+		return $this->query_args;
+	}
 }

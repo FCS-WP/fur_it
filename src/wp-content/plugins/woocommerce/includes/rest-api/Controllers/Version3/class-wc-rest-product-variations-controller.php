@@ -8,6 +8,10 @@
  * @since   3.0.0
  */
 
+use Automattic\WooCommerce\Enums\ProductTaxStatus;
+use Automattic\WooCommerce\Enums\ProductStatus;
+use Automattic\WooCommerce\Enums\ProductStockStatus;
+use Automattic\WooCommerce\Internal\CostOfGoodsSold\CogsAwareRestControllerTrait;
 use Automattic\WooCommerce\Utilities\I18nUtil;
 
 defined( 'ABSPATH' ) || exit;
@@ -21,6 +25,7 @@ use Automattic\Jetpack\Constants;
  * @extends WC_REST_Product_Variations_V2_Controller
  */
 class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V2_Controller {
+	use CogsAwareRestControllerTrait;
 
 	/**
 	 * Endpoint namespace.
@@ -28,6 +33,13 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 	 * @var string
 	 */
 	protected $namespace = 'wc/v3';
+
+	/**
+	 * Product statuses to exclude from the query.
+	 *
+	 * @var array
+	 */
+	private $exclude_status = array();
 
 	/**
 	 * Register the routes for products.
@@ -149,8 +161,13 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 			'parent_id'             => $object->get_parent_id(),
 		);
 
-		$data     = $this->add_additional_fields_to_object( $data, $request );
-		$data     = $this->filter_response_by_context( $data, $context );
+		$data = $this->add_additional_fields_to_object( $data, $request );
+		$data = $this->filter_response_by_context( $data, $context );
+
+		if ( $this->cogs_is_enabled() ) {
+			$this->add_cogs_info_to_returned_product_data( $data, $object );
+		}
+
 		$response = rest_ensure_response( $data );
 		$response->add_links( $this->prepare_links( $object, $request ) );
 
@@ -186,7 +203,7 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 
 		// Status.
 		if ( isset( $request['status'] ) ) {
-			$variation->set_status( get_post_status_object( $request['status'] ) ? $request['status'] : 'draft' );
+			$variation->set_status( get_post_status_object( $request['status'] ) ? $request['status'] : ProductStatus::DRAFT );
 		}
 
 		// SKU.
@@ -333,7 +350,7 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 				// Check ID for global attributes or name for product attributes.
 				if ( ! empty( $attribute['id'] ) ) {
 					$attribute_id   = absint( $attribute['id'] );
-					$attribute_name = wc_attribute_taxonomy_name_by_id( $attribute_id );
+					$attribute_name = sanitize_title( wc_attribute_taxonomy_name_by_id( $attribute_id ) );
 				} elseif ( ! empty( $attribute['name'] ) ) {
 					$attribute_name = sanitize_title( $attribute['name'] );
 				}
@@ -347,7 +364,7 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 				}
 
 				$attribute_key   = sanitize_title( $parent_attributes[ $attribute_name ]->get_name() );
-				$attribute_value = isset( $attribute['option'] ) ? wc_clean( stripslashes( $attribute['option'] ) ) : '';
+				$attribute_value = isset( $attribute['option'] ) ? wc_clean( rawurldecode( stripslashes( $attribute['option'] ) ) ) : '';
 
 				if ( $parent_attributes[ $attribute_name ]->is_taxonomy() ) {
 					// If dealing with a taxonomy, we need to get the slug from the name posted to the API.
@@ -376,6 +393,10 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 			foreach ( $request['meta_data'] as $meta ) {
 				$variation->update_meta_data( $meta['key'], $meta['value'], isset( $meta['id'] ) ? $meta['id'] : '' );
 			}
+		}
+
+		if ( $this->cogs_is_enabled() ) {
+			$this->set_cogs_info_in_product_object( $request, $variation );
 		}
 
 		/**
@@ -446,7 +467,7 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 
 				if ( is_wp_error( $upload ) ) {
 					/**
-					 * Filter to check if it should supress the image upload error, false by default.
+					 * Filter to check if it should suppress the image upload error, false by default.
 					 *
 					 * @since 4.5.0
 					 * @param bool false   If it should suppress.
@@ -595,6 +616,8 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 				'status'                => array(
 					'description' => __( 'Variation status.', 'woocommerce' ),
 					'type'        => 'string',
+					// Not using ProductStatus constants here due the class not being loaded upon installation.
+					// See: https://github.com/woocommerce/woocommerce/issues/37464.
 					'default'     => 'publish',
 					'enum'        => array_keys( get_post_statuses() ),
 					'context'     => array( 'view', 'edit' ),
@@ -657,8 +680,8 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 				'tax_status'            => array(
 					'description' => __( 'Tax status.', 'woocommerce' ),
 					'type'        => 'string',
-					'default'     => 'taxable',
-					'enum'        => array( 'taxable', 'shipping', 'none' ),
+					'default'     => ProductTaxStatus::TAXABLE,
+					'enum'        => array( ProductTaxStatus::TAXABLE, ProductTaxStatus::SHIPPING, ProductTaxStatus::NONE ),
 					'context'     => array( 'view', 'edit' ),
 				),
 				'tax_class'             => array(
@@ -668,7 +691,7 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 				),
 				'manage_stock'          => array(
 					'description' => __( 'Stock management at variation level.', 'woocommerce' ),
-					'type'        => 'boolean',
+					'type'        => array( 'boolean', 'string' ),
 					'default'     => false,
 					'context'     => array( 'view', 'edit' ),
 				),
@@ -680,7 +703,7 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 				'stock_status'          => array(
 					'description' => __( 'Controls the stock status of the product.', 'woocommerce' ),
 					'type'        => 'string',
-					'default'     => 'instock',
+					'default'     => ProductStockStatus::IN_STOCK,
 					'enum'        => array_keys( wc_get_product_stock_status_options() ),
 					'context'     => array( 'view', 'edit' ),
 				),
@@ -858,8 +881,19 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 						),
 					),
 				),
+				'parent_id'             => array(
+					'description' => __( 'Product parent ID.', 'woocommerce' ),
+					'type'        => 'integer',
+					'context'     => array( 'view', 'edit' ),
+					'readonly'    => true,
+				),
 			),
 		);
+
+		if ( $this->cogs_is_enabled() ) {
+			$schema = $this->add_cogs_related_product_schema( $schema, true );
+		}
+
 		return $this->add_additional_fields_schema( $schema );
 	}
 
@@ -875,6 +909,28 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 
 		// Set post_status.
 		$args['post_status'] = $request['status'];
+
+		// Filter by a list of product variation statuses.
+		if ( ! empty( $request['include_status'] ) ) {
+			$args['post_status'] = $request['include_status'];
+		}
+
+		if ( ! empty( $request['exclude_status'] ) ) {
+			$this->exclude_status = $request['exclude_status'];
+		} else {
+			$this->exclude_status = array();
+		}
+
+		// Filter downloadable product variations.
+		if ( isset( $request['downloadable'] ) ) {
+			$args['meta_query'] = $this->add_meta_query( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				$args,
+				array(
+					'key'   => '_downloadable',
+					'value' => wc_bool_to_string( $request['downloadable'] ),
+				)
+			);
+		}
 
 		/**
 		 * @deprecated 8.1.0 replaced by attributes.
@@ -935,6 +991,19 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 				array(
 					'key'     => '_sku',
 					'value'   => $skus,
+					'compare' => 'IN',
+				)
+			);
+		}
+
+		// Filter by global_unique_id.
+		if ( ! empty( $request['global_unique_id'] ) ) {
+			$global_unique_ids  = array_map( 'trim', explode( ',', $request['global_unique_id'] ) );
+			$args['meta_query'] = $this->add_meta_query( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				$args,
+				array(
+					'key'     => '_global_unique_id',
+					'value'   => $global_unique_ids,
 					'compare' => 'IN',
 				)
 			);
@@ -1016,15 +1085,60 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 		}
 
 		// Force the post_type argument, since it's not a user input variable.
-		if ( ! empty( $request['sku'] ) ) {
+		if ( ! empty( $request['sku'] ) || ! empty( $request['global_unique_id'] ) ) {
 			$args['post_type'] = array( 'product', 'product_variation' );
 		} else {
 			$args['post_type'] = $this->post_type;
 		}
 
+		// Filter virtual product variations.
+		if ( isset( $request['virtual'] ) ) {
+			$args['meta_query'] = $this->add_meta_query( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				$args,
+				array(
+					'key'   => '_virtual',
+					'value' => wc_bool_to_string( $request['virtual'] ),
+				)
+			);
+		}
+
+		// Filter by visibility in POS.
+		if ( true === $request['pos_products_only'] ) {
+			$args['tax_query'][] = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
+				'taxonomy' => 'pos_product_visibility',
+				'field'    => 'slug',
+				'terms'    => 'pos-hidden',
+				'operator' => 'NOT IN',
+			);
+		}
+
 		$args['post_parent'] = $request['product_id'];
 
 		return $args;
+	}
+
+	/**
+	 * Get objects.
+	 *
+	 * @param array $query_args Query args.
+	 * @return array
+	 */
+	protected function get_objects( $query_args ) {
+		// Add filters for excluding product variation statuses.
+		if ( ! empty( $this->exclude_status ) ) {
+			add_filter( 'posts_where', array( $this, 'exclude_product_variation_statuses' ) );
+		}
+
+		$result = parent::get_objects( $query_args );
+
+		// Remove filters for excluding product variation statuses.
+		if ( ! empty( $this->exclude_status ) ) {
+			remove_filter( 'posts_where', array( $this, 'exclude_product_variation_statuses' ) );
+
+			$this->exclude_status = array();
+		}
+
+		return $result;
 	}
 
 	/**
@@ -1081,6 +1195,49 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 					),
 				),
 			),
+		);
+
+		$params['virtual'] = array(
+			'description'       => __( 'Limit result set to virtual product variations.', 'woocommerce' ),
+			'type'              => 'boolean',
+			'sanitize_callback' => 'rest_sanitize_boolean',
+			'validate_callback' => 'rest_validate_request_arg',
+		);
+
+		$params['downloadable'] = array(
+			'description'       => __( 'Limit result set to downloadable product variations.', 'woocommerce' ),
+			'type'              => 'boolean',
+			'sanitize_callback' => 'rest_sanitize_boolean',
+			'validate_callback' => 'rest_validate_request_arg',
+		);
+
+		$params['include_status'] = array(
+			'description'       => __( 'Limit result set to product variations with any of the statuses.', 'woocommerce' ),
+			'type'              => 'array',
+			'items'             => array(
+				'type' => 'string',
+				'enum' => array_merge( array( 'any', 'future', 'trash' ), array_keys( get_post_statuses() ) ),
+			),
+			'sanitize_callback' => 'wp_parse_list',
+			'validate_callback' => 'rest_validate_request_arg',
+		);
+
+		$params['exclude_status'] = array(
+			'description'       => __( 'Exclude product variations with any of the statuses from result set.', 'woocommerce' ),
+			'type'              => 'array',
+			'items'             => array(
+				'type' => 'string',
+				'enum' => array_merge( array( 'future', 'trash' ), array_keys( get_post_statuses() ) ),
+			),
+			'sanitize_callback' => 'wp_parse_list',
+			'validate_callback' => 'rest_validate_request_arg',
+		);
+
+		$params['pos_products_only'] = array(
+			'description'       => __( 'Limit result set to variations visible in Point of Sale.', 'woocommerce' ),
+			'type'              => 'boolean',
+			'sanitize_callback' => 'wc_string_to_bool',
+			'validate_callback' => 'rest_validate_request_arg',
 		);
 
 		return $params;
@@ -1151,5 +1308,27 @@ class WC_REST_Product_Variations_Controller extends WC_REST_Product_Variations_V
 		$data_store->sort_all_product_variations( $product->get_id() );
 
 		return rest_ensure_response( $response );
+	}
+
+	/**
+	 * Exclude product variation statuses from the query.
+	 *
+	 * @param string $where Where clause used to search posts.
+	 * @return string
+	 */
+	public function exclude_product_variation_statuses( $where ) {
+		if ( ! empty( $this->exclude_status ) && is_array( $this->exclude_status ) ) {
+			global $wpdb;
+
+			$not_in = array();
+			foreach ( $this->exclude_status as $status_to_exclude ) {
+				$not_in[] = $wpdb->prepare( '%s', $status_to_exclude );
+			}
+
+			$not_in = join( ', ', $not_in );
+			return $where . " AND $wpdb->posts.post_status NOT IN ( $not_in )";
+		}
+
+		return $where;
 	}
 }

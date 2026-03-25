@@ -191,7 +191,7 @@ class SSO {
 			Helpers::delete_connection_for_user( $current_user->ID );
 			wp_logout();
 			wp_safe_redirect( wp_login_url() );
-			exit;
+			exit( 0 );
 		}
 	}
 
@@ -275,7 +275,7 @@ class SSO {
 			 * $_GET['jetpack-sso-default-form'] is used to provide a fallback in case JavaScript is not enabled.
 			 *
 			 * The default_to_sso_login() method allows us to dynamically decide whether we show the SSO login form or not.
-			 * The SSO module uses the method to display the default login form if we can not find a user to log in via SSO.
+			 * The SSO module uses the method to display the default login form if we cannot find a user to log in via SSO.
 			 * But, the method could be filtered by a site admin to always show the default login form if that is preferred.
 			 */
 			if ( empty( $_GET['jetpack-sso-show-default-form'] ) && Helpers::show_sso_login() ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -447,13 +447,6 @@ class SSO {
 	}
 
 	/**
-	 * Checks to determine if the user has indicated they want to use the wp-admin interface.
-	 */
-	private function use_wp_admin_interface() {
-		return 'wp-admin' === get_option( 'wpcom_admin_interface' );
-	}
-
-	/**
 	 * Initialization for a SSO request.
 	 */
 	public function login_init() {
@@ -498,7 +491,7 @@ class SSO {
 
 				$tracking->record_user_event( 'sso_login_redirect_success' );
 				wp_safe_redirect( $sso_url );
-				exit;
+				exit( 0 );
 			}
 		} elseif ( Helpers::display_sso_form_for_action( $action ) ) {
 
@@ -510,13 +503,13 @@ class SSO {
 			 * to the WordPress.com login page AND  that the request to wp-login.php
 			 * is not something other than login (Like logout!)
 			 */
-			if ( ! $this->use_wp_admin_interface() && Helpers::bypass_login_forward_wpcom() && $this->wants_to_login() ) {
+			if ( Helpers::bypass_login_forward_wpcom() && $this->wants_to_login() ) {
 				add_filter( 'allowed_redirect_hosts', array( Helpers::class, 'allowed_redirect_hosts' ) );
 				$reauth  = ! empty( $_GET['force_reauth'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 				$sso_url = $this->get_sso_url_or_die( $reauth );
 				$tracking->record_user_event( 'sso_login_redirect_bypass_success' );
 				wp_safe_redirect( $sso_url );
-				exit;
+				exit( 0 );
 			}
 
 			$this->display_sso_login_form();
@@ -629,7 +622,7 @@ class SSO {
 
 					<?php if ( $display_name && $gravatar ) : ?>
 					<a rel="nofollow" class="jetpack-sso-wrap__reauth" href="<?php echo esc_url( $this->build_sso_button_url( array( 'force_reauth' => '1' ) ) ); ?>">
-						<?php esc_html_e( 'Log in as a different WordPress.com user', 'jetpack-connection' ); ?>
+						<?php esc_html_e( 'Log in with another WordPress.com account', 'jetpack-connection' ); ?>
 					</a>
 				<?php else : ?>
 					<p>
@@ -830,7 +823,7 @@ class SSO {
 		}
 
 		$user_found_with = '';
-		if ( empty( $user ) && isset( $user_data->external_user_id ) ) {
+		if ( isset( $user_data->external_user_id ) ) {
 			$user_found_with = 'external_user_id';
 			$user            = get_user_by( 'id', (int) $user_data->external_user_id );
 			if ( $user ) {
@@ -976,7 +969,7 @@ class SSO {
 						admin_url()
 					)
 				);
-				exit;
+				exit( 0 );
 			}
 
 			add_filter( 'allowed_redirect_hosts', array( Helpers::class, 'allowed_redirect_hosts' ) );
@@ -984,7 +977,7 @@ class SSO {
 			/** This filter is documented in core/src/wp-login.php */
 				apply_filters( 'login_redirect', $redirect_to, $_request_redirect_to, $user )
 			);
-			exit;
+			exit( 0 );
 		}
 
 		add_filter( 'jetpack_sso_default_to_sso_login', '__return_false' );
@@ -1195,7 +1188,7 @@ class SSO {
 		$redirect_after_auth = apply_filters( 'login_redirect', $redirect_to, $request_redirect_to, wp_get_current_user() );
 
 		/**
-		 * Since we are passing this redirect to WordPress.com and therefore can not use wp_safe_redirect(),
+		 * Since we are passing this redirect to WordPress.com and therefore cannot use wp_safe_redirect(),
 		 * let's sanitize it here to make sure it's safe. If the redirect is not safe, then use admin_url().
 		 */
 		$redirect_after_auth = wp_sanitize_redirect( $redirect_after_auth );
@@ -1214,7 +1207,7 @@ class SSO {
 
 		add_filter( 'allowed_redirect_hosts', array( Helpers::class, 'allowed_redirect_hosts' ) );
 		wp_safe_redirect( $connect_url );
-		exit;
+		exit( 0 );
 	}
 
 	/**

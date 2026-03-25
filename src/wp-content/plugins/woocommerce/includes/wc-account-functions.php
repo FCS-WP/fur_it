@@ -8,6 +8,9 @@
  * @version 2.6.0
  */
 
+use Automattic\WooCommerce\Enums\OrderStatus;
+use Automattic\WooCommerce\Enums\PaymentGatewayFeature;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -104,7 +107,7 @@ function wc_get_account_menu_items() {
 		'dashboard'       => __( 'Dashboard', 'woocommerce' ),
 		'orders'          => __( 'Orders', 'woocommerce' ),
 		'downloads'       => __( 'Downloads', 'woocommerce' ),
-		'edit-address'    => _n( 'Address', 'Addresses', ( 1 + (int) wc_shipping_enabled() ), 'woocommerce' ),
+		'edit-address'    => _n( 'Address', 'Addresses', ( ! wc_ship_to_billing_address_only() && wc_shipping_enabled() ) ? 2 : 1, 'woocommerce' ),
 		'payment-methods' => __( 'Payment methods', 'woocommerce' ),
 		'edit-account'    => __( 'Account details', 'woocommerce' ),
 		'customer-logout' => __( 'Log out', 'woocommerce' ),
@@ -121,7 +124,7 @@ function wc_get_account_menu_items() {
 	if ( isset( $items['payment-methods'] ) ) {
 		$support_payment_methods = false;
 		foreach ( WC()->payment_gateways->get_available_payment_gateways() as $gateway ) {
-			if ( $gateway->supports( 'add_payment_method' ) || $gateway->supports( 'tokenization' ) ) {
+			if ( $gateway->supports( PaymentGatewayFeature::ADD_PAYMENT_METHOD ) || $gateway->supports( PaymentGatewayFeature::TOKENIZATION ) ) {
 				$support_payment_methods = true;
 				break;
 			}
@@ -298,16 +301,22 @@ function wc_get_account_orders_actions( $order ) {
 
 	$actions = array(
 		'pay'    => array(
-			'url'  => $order->get_checkout_payment_url(),
-			'name' => __( 'Pay', 'woocommerce' ),
+			'url'        => $order->get_checkout_payment_url(),
+			'name'       => __( 'Pay', 'woocommerce' ),
+			/* translators: %s: order number */
+			'aria-label' => sprintf( __( 'Pay for order %s', 'woocommerce' ), $order->get_order_number() ),
 		),
 		'view'   => array(
-			'url'  => $order->get_view_order_url(),
-			'name' => __( 'View', 'woocommerce' ),
+			'url'        => $order->get_view_order_url(),
+			'name'       => __( 'View', 'woocommerce' ),
+			/* translators: %s: order number */
+			'aria-label' => sprintf( __( 'View order %s', 'woocommerce' ), $order->get_order_number() ),
 		),
 		'cancel' => array(
-			'url'  => $order->get_cancel_order_url( wc_get_page_permalink( 'myaccount' ) ),
-			'name' => __( 'Cancel', 'woocommerce' ),
+			'url'        => $order->get_cancel_order_url( wc_get_page_permalink( 'myaccount' ) ),
+			'name'       => __( 'Cancel', 'woocommerce' ),
+			/* translators: %s: order number */
+			'aria-label' => sprintf( __( 'Cancel order %s', 'woocommerce' ), $order->get_order_number() ),
 		),
 	);
 
@@ -315,7 +324,16 @@ function wc_get_account_orders_actions( $order ) {
 		unset( $actions['pay'] );
 	}
 
-	if ( ! in_array( $order->get_status(), apply_filters( 'woocommerce_valid_order_statuses_for_cancel', array( 'pending', 'failed' ), $order ), true ) ) {
+	/**
+	 * Filters the valid order statuses for cancel action.
+	 *
+	 * @since 3.2.0
+	 *
+	 * @param array    $statuses_for_cancel Array of valid order statuses for cancel action.
+	 * @param WC_Order $order                Order instance.
+	 */
+	$statuses_for_cancel = apply_filters( 'woocommerce_valid_order_statuses_for_cancel', array( OrderStatus::PENDING, OrderStatus::FAILED ), $order );
+	if ( ! in_array( $order->get_status(), $statuses_for_cancel, true ) ) {
 		unset( $actions['cancel'] );
 	}
 

@@ -1,0 +1,338 @@
+// ============================================================
+// Zippy Shop Section
+// _shop-section.scss
+// ============================================================
+
+
+// ── Category Tabs ────────────────────────────────────────────
+.zippy-cat-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.zippy-cat-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+    gap: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+
+    &__icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid transparent;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+        img {
+            width: 90%;
+            height: 90%;
+            object-fit: contain;
+            border-radius: 50%;
+        }
+    }
+
+    &__label {
+        font-size: 16px;
+        color: #666;
+        font-weight: 600;
+        transition: color 0.2s ease;
+    }
+
+    // Active state
+    &--active,
+    &:hover {
+        transform: translateY(-2px);
+
+        .zippy-cat-tab__icon {
+            border-color: $fs-color-success;
+            box-shadow: 0 4px 16px rgba(191, 172, 145, 0.3);
+        }
+
+        .zippy-cat-tab__label {
+            color: $primary-color;
+            font-weight: 600;
+        }
+    }
+}
+
+
+// ── Promo Banner ─────────────────────────────────────────────
+.zippy-promo-banner {
+    display: flex;
+    overflow: hidden;
+    margin-bottom: 32px;
+
+    @media (max-width: 649px) {
+        flex-direction: column;
+    }
+
+    // Left
+    &__left {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 40px 48px;
+        gap: 12px;
+
+        @media (max-width: 849px) { padding: 32px 28px; }
+        @media (max-width: 649px) { flex: 1 1 auto !important; }
+    }
+
+    &__tag {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 50px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        width: fit-content;
+    }
+
+    &__title {
+        font-size: 32px;
+        font-weight: 800;
+        line-height: 1.2;
+        color: $primary-color;
+        margin: 0;
+
+        @media (max-width: 849px) { font-size: 24px; }
+    }
+
+    &__desc {
+        font-size: 14px;
+        color: #777;
+        line-height: 1.6;
+        margin: 0;
+        max-width: 320px;
+    }
+
+    &__btn {
+        display: inline-flex;
+        align-items: center;
+        padding: 12px 28px;
+        border-radius: 50px;
+        background: $primary-color;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        width: fit-content;
+        margin-top: 8px;
+        transition: background 0.2s ease, transform 0.15s ease;
+
+        &:hover {
+            background: $fs-color-success;
+            transform: translateY(-2px);
+        }
+    }
+
+    // Right
+    &__right {
+        position: relative;
+        overflow: hidden;
+
+        @media (max-width: 649px) {
+            flex: 1 1 auto !important;
+            min-height: 200px;
+        }
+    }
+
+    &__image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+}
+
+
+// ── Product Grid ─────────────────────────────────────────────
+.zippy-pgrid-wrapper {
+    width: 100%;
+}
+
+.zippy-pgrid {
+    display: grid;
+    gap: 20px;
+}
+
+.zippy-pgrid-card {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+    }
+
+    // ── Image ──
+    &__image-wrap {
+        position: relative;
+        display: block;
+        aspect-ratio: 4 / 3;
+        overflow: hidden;
+        background: #f5f5f5;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        &:hover img { transform: scale(1.04); }
+    }
+
+    &__no-image {
+        width: 100%;
+        height: 100%;
+        background: #eee;
+    }
+
+    // ── Badges ──
+    &__badge {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        z-index: 2;
+
+        &--sale {
+            background: #f97316;
+            color: #fff;
+        }
+
+        &--editor {
+            background: $fs-color-success;
+            color: #fff;
+        }
+    }
+
+    // ── Info row ──
+    &__info {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        padding: 14px 16px;
+        gap: 8px;
+        flex: 1;
+    }
+
+    &__meta {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__cat {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: $fs-color-success;
+        text-transform: uppercase;
+    }
+
+    &__title {
+        font-size: 14px;
+        font-weight: 600;
+        color: $primary-color;
+        text-decoration: none;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        &:hover { color: $fs-color-success; }
+    }
+
+    &__price {
+        font-size: 15px;
+        font-weight: 700;
+        color: $primary-color;
+        margin-top: 2px;
+
+        del {
+            font-weight: 400;
+            color: #aaa;
+            font-size: 12px;
+            margin-right: 4px;
+        }
+
+        ins {
+            text-decoration: none;
+        }
+
+        .woocommerce-Price-amount { color: inherit; }
+    }
+
+    // ── Cart button ──
+    &__cart {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: $fs-color-secondary;
+        color: $primary-color;
+        text-decoration: none;
+        flex-shrink: 0;
+        transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+
+        &:hover {
+            background: $primary-color;
+            color: #fff;
+            transform: scale(1.1);
+        }
+
+        svg { display: block; }
+    }
+}
+
+// Cart Page
+.woocommerce-cart-form {
+    th {
+        color: $primary-color;
+    }
+    #coupon_code {
+        min-width: 150px !important;
+    }
+}
+.cart_totals  {
+    color: $primary-color;
+}
+
+button[name="update_cart"], .checkout-button.wc-forward, button#place_order {
+    background: $primary-color !important;
+    color: $white;
+}
+
+@media (min-width: 1024px) {
+    .shop-container {
+        margin-left: 1.5rem;
+    }
+}

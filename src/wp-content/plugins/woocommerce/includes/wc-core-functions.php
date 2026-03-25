@@ -10,6 +10,7 @@
 
 use Automattic\Jetpack\Constants;
 use Automattic\WooCommerce\Utilities\NumberUtil;
+use Automattic\WooCommerce\Blocks\Utils\CartCheckoutUtils;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -32,11 +33,12 @@ require WC_ABSPATH . 'includes/wc-attribute-functions.php';
 require WC_ABSPATH . 'includes/wc-rest-functions.php';
 require WC_ABSPATH . 'includes/wc-widget-functions.php';
 require WC_ABSPATH . 'includes/wc-webhook-functions.php';
+require WC_ABSPATH . 'includes/wc-order-step-logger-functions.php';
+require WC_ABSPATH . 'includes/wc-interactivity-api-functions.php';
 
 /**
  * Filters on data used in admin and frontend.
  */
-add_filter( 'woocommerce_coupon_code', 'html_entity_decode' );
 add_filter( 'woocommerce_coupon_code', 'wc_sanitize_coupon_code' );
 add_filter( 'woocommerce_coupon_code', 'wc_strtolower' );
 add_filter( 'woocommerce_stock_amount', 'intval' ); // Stock amounts are integers by default.
@@ -66,6 +68,7 @@ add_filter( 'woocommerce_short_description', array( $GLOBALS['wp_embed'], 'run_s
  * @since 3.0.0
  * @param string $name  Constant name.
  * @param mixed  $value Value.
+ * @return void
  */
 function wc_maybe_define_constant( $name, $value ) {
 	if ( ! defined( $name ) ) {
@@ -238,6 +241,7 @@ function wc_get_path_define_tokens() {
  *
  * @param mixed  $slug Template slug.
  * @param string $name Template name (default: '').
+ * @return void
  */
 function wc_get_template_part( $slug, $name = '' ) {
 	$cache_key = sanitize_key( implode( '-', array( 'template-part', $slug, $name, Constants::get_constant( 'WC_VERSION' ) ) ) );
@@ -292,6 +296,7 @@ function wc_get_template_part( $slug, $name = '' ) {
  * @param array  $args          Arguments. (default: array).
  * @param string $template_path Template path. (default: '').
  * @param string $default_path  Default path. (default: '').
+ * @return void
  */
 function wc_get_template( $template_name, $args = array(), $template_path = '', $default_path = '' ) {
 	$cache_key = sanitize_key( implode( '-', array( 'template', $template_name, $template_path, $default_path, Constants::get_constant( 'WC_VERSION' ) ) ) );
@@ -416,8 +421,19 @@ function wc_locate_template( $template_name, $template_path = '', $default_path 
 		}
 	}
 
-	// Return what we found.
-	return apply_filters( 'woocommerce_locate_template', $template, $template_name, $template_path );
+	/**
+	 * Filter to customize the path of a given WooCommerce template.
+	 *
+	 * Note: the $default_path argument was added in WooCommerce 9.5.0.
+	 *
+	 * @param string $template Full file path of the template.
+	 * @param string $template_name Template name.
+	 * @param string $template_path Template path.
+	 * @param string $template_path Default WooCommerce templates path.
+	 *
+	 * @since 9.5.0 $default_path argument added.
+	 */
+	return apply_filters( 'woocommerce_locate_template', $template, $template_name, $template_path, $default_path );
 }
 
 /**
@@ -426,6 +442,7 @@ function wc_locate_template( $template_name, $template_path = '', $default_path 
  * @since 4.3.0
  * @param string $cache_key Object cache key.
  * @param string $template Located template.
+ * @return void
  */
 function wc_set_template_cache( $cache_key, $template ) {
 	wp_cache_set( $cache_key, $template, 'woocommerce' );
@@ -444,6 +461,7 @@ function wc_set_template_cache( $cache_key, $template ) {
  * Clear the template cache.
  *
  * @since 4.3.0
+ * @return void
  */
 function wc_clear_template_cache() {
 	$cached_templates = wp_cache_get( 'cached_templates', 'woocommerce' );
@@ -460,6 +478,7 @@ function wc_clear_template_cache() {
  * Clear the system status theme info cache.
  *
  * @since 9.4.0
+ * @return void
  */
 function wc_clear_system_status_theme_info_cache() {
 	delete_transient( 'wc_system_status_theme_info' );
@@ -486,174 +505,13 @@ function get_woocommerce_currencies() {
 
 	if ( ! isset( $currencies ) ) {
 		$currencies = array_unique(
-			apply_filters(
-				'woocommerce_currencies',
-				array(
-					'AED' => __( 'United Arab Emirates dirham', 'woocommerce' ),
-					'AFN' => __( 'Afghan afghani', 'woocommerce' ),
-					'ALL' => __( 'Albanian lek', 'woocommerce' ),
-					'AMD' => __( 'Armenian dram', 'woocommerce' ),
-					'ANG' => __( 'Netherlands Antillean guilder', 'woocommerce' ),
-					'AOA' => __( 'Angolan kwanza', 'woocommerce' ),
-					'ARS' => __( 'Argentine peso', 'woocommerce' ),
-					'AUD' => __( 'Australian dollar', 'woocommerce' ),
-					'AWG' => __( 'Aruban florin', 'woocommerce' ),
-					'AZN' => __( 'Azerbaijani manat', 'woocommerce' ),
-					'BAM' => __( 'Bosnia and Herzegovina convertible mark', 'woocommerce' ),
-					'BBD' => __( 'Barbadian dollar', 'woocommerce' ),
-					'BDT' => __( 'Bangladeshi taka', 'woocommerce' ),
-					'BGN' => __( 'Bulgarian lev', 'woocommerce' ),
-					'BHD' => __( 'Bahraini dinar', 'woocommerce' ),
-					'BIF' => __( 'Burundian franc', 'woocommerce' ),
-					'BMD' => __( 'Bermudian dollar', 'woocommerce' ),
-					'BND' => __( 'Brunei dollar', 'woocommerce' ),
-					'BOB' => __( 'Bolivian boliviano', 'woocommerce' ),
-					'BRL' => __( 'Brazilian real', 'woocommerce' ),
-					'BSD' => __( 'Bahamian dollar', 'woocommerce' ),
-					'BTC' => __( 'Bitcoin', 'woocommerce' ),
-					'BTN' => __( 'Bhutanese ngultrum', 'woocommerce' ),
-					'BWP' => __( 'Botswana pula', 'woocommerce' ),
-					'BYR' => __( 'Belarusian ruble (old)', 'woocommerce' ),
-					'BYN' => __( 'Belarusian ruble', 'woocommerce' ),
-					'BZD' => __( 'Belize dollar', 'woocommerce' ),
-					'CAD' => __( 'Canadian dollar', 'woocommerce' ),
-					'CDF' => __( 'Congolese franc', 'woocommerce' ),
-					'CHF' => __( 'Swiss franc', 'woocommerce' ),
-					'CLP' => __( 'Chilean peso', 'woocommerce' ),
-					'CNY' => __( 'Chinese yuan', 'woocommerce' ),
-					'COP' => __( 'Colombian peso', 'woocommerce' ),
-					'CRC' => __( 'Costa Rican col&oacute;n', 'woocommerce' ),
-					'CUC' => __( 'Cuban convertible peso', 'woocommerce' ),
-					'CUP' => __( 'Cuban peso', 'woocommerce' ),
-					'CVE' => __( 'Cape Verdean escudo', 'woocommerce' ),
-					'CZK' => __( 'Czech koruna', 'woocommerce' ),
-					'DJF' => __( 'Djiboutian franc', 'woocommerce' ),
-					'DKK' => __( 'Danish krone', 'woocommerce' ),
-					'DOP' => __( 'Dominican peso', 'woocommerce' ),
-					'DZD' => __( 'Algerian dinar', 'woocommerce' ),
-					'EGP' => __( 'Egyptian pound', 'woocommerce' ),
-					'ERN' => __( 'Eritrean nakfa', 'woocommerce' ),
-					'ETB' => __( 'Ethiopian birr', 'woocommerce' ),
-					'EUR' => __( 'Euro', 'woocommerce' ),
-					'FJD' => __( 'Fijian dollar', 'woocommerce' ),
-					'FKP' => __( 'Falkland Islands pound', 'woocommerce' ),
-					'GBP' => __( 'Pound sterling', 'woocommerce' ),
-					'GEL' => __( 'Georgian lari', 'woocommerce' ),
-					'GGP' => __( 'Guernsey pound', 'woocommerce' ),
-					'GHS' => __( 'Ghana cedi', 'woocommerce' ),
-					'GIP' => __( 'Gibraltar pound', 'woocommerce' ),
-					'GMD' => __( 'Gambian dalasi', 'woocommerce' ),
-					'GNF' => __( 'Guinean franc', 'woocommerce' ),
-					'GTQ' => __( 'Guatemalan quetzal', 'woocommerce' ),
-					'GYD' => __( 'Guyanese dollar', 'woocommerce' ),
-					'HKD' => __( 'Hong Kong dollar', 'woocommerce' ),
-					'HNL' => __( 'Honduran lempira', 'woocommerce' ),
-					'HRK' => __( 'Croatian kuna', 'woocommerce' ),
-					'HTG' => __( 'Haitian gourde', 'woocommerce' ),
-					'HUF' => __( 'Hungarian forint', 'woocommerce' ),
-					'IDR' => __( 'Indonesian rupiah', 'woocommerce' ),
-					'ILS' => __( 'Israeli new shekel', 'woocommerce' ),
-					'IMP' => __( 'Manx pound', 'woocommerce' ),
-					'INR' => __( 'Indian rupee', 'woocommerce' ),
-					'IQD' => __( 'Iraqi dinar', 'woocommerce' ),
-					'IRR' => __( 'Iranian rial', 'woocommerce' ),
-					'IRT' => __( 'Iranian toman', 'woocommerce' ),
-					'ISK' => __( 'Icelandic kr&oacute;na', 'woocommerce' ),
-					'JEP' => __( 'Jersey pound', 'woocommerce' ),
-					'JMD' => __( 'Jamaican dollar', 'woocommerce' ),
-					'JOD' => __( 'Jordanian dinar', 'woocommerce' ),
-					'JPY' => __( 'Japanese yen', 'woocommerce' ),
-					'KES' => __( 'Kenyan shilling', 'woocommerce' ),
-					'KGS' => __( 'Kyrgyzstani som', 'woocommerce' ),
-					'KHR' => __( 'Cambodian riel', 'woocommerce' ),
-					'KMF' => __( 'Comorian franc', 'woocommerce' ),
-					'KPW' => __( 'North Korean won', 'woocommerce' ),
-					'KRW' => __( 'South Korean won', 'woocommerce' ),
-					'KWD' => __( 'Kuwaiti dinar', 'woocommerce' ),
-					'KYD' => __( 'Cayman Islands dollar', 'woocommerce' ),
-					'KZT' => __( 'Kazakhstani tenge', 'woocommerce' ),
-					'LAK' => __( 'Lao kip', 'woocommerce' ),
-					'LBP' => __( 'Lebanese pound', 'woocommerce' ),
-					'LKR' => __( 'Sri Lankan rupee', 'woocommerce' ),
-					'LRD' => __( 'Liberian dollar', 'woocommerce' ),
-					'LSL' => __( 'Lesotho loti', 'woocommerce' ),
-					'LYD' => __( 'Libyan dinar', 'woocommerce' ),
-					'MAD' => __( 'Moroccan dirham', 'woocommerce' ),
-					'MDL' => __( 'Moldovan leu', 'woocommerce' ),
-					'MGA' => __( 'Malagasy ariary', 'woocommerce' ),
-					'MKD' => __( 'Macedonian denar', 'woocommerce' ),
-					'MMK' => __( 'Burmese kyat', 'woocommerce' ),
-					'MNT' => __( 'Mongolian t&ouml;gr&ouml;g', 'woocommerce' ),
-					'MOP' => __( 'Macanese pataca', 'woocommerce' ),
-					'MRU' => __( 'Mauritanian ouguiya', 'woocommerce' ),
-					'MUR' => __( 'Mauritian rupee', 'woocommerce' ),
-					'MVR' => __( 'Maldivian rufiyaa', 'woocommerce' ),
-					'MWK' => __( 'Malawian kwacha', 'woocommerce' ),
-					'MXN' => __( 'Mexican peso', 'woocommerce' ),
-					'MYR' => __( 'Malaysian ringgit', 'woocommerce' ),
-					'MZN' => __( 'Mozambican metical', 'woocommerce' ),
-					'NAD' => __( 'Namibian dollar', 'woocommerce' ),
-					'NGN' => __( 'Nigerian naira', 'woocommerce' ),
-					'NIO' => __( 'Nicaraguan c&oacute;rdoba', 'woocommerce' ),
-					'NOK' => __( 'Norwegian krone', 'woocommerce' ),
-					'NPR' => __( 'Nepalese rupee', 'woocommerce' ),
-					'NZD' => __( 'New Zealand dollar', 'woocommerce' ),
-					'OMR' => __( 'Omani rial', 'woocommerce' ),
-					'PAB' => __( 'Panamanian balboa', 'woocommerce' ),
-					'PEN' => __( 'Sol', 'woocommerce' ),
-					'PGK' => __( 'Papua New Guinean kina', 'woocommerce' ),
-					'PHP' => __( 'Philippine peso', 'woocommerce' ),
-					'PKR' => __( 'Pakistani rupee', 'woocommerce' ),
-					'PLN' => __( 'Polish z&#x142;oty', 'woocommerce' ),
-					'PRB' => __( 'Transnistrian ruble', 'woocommerce' ),
-					'PYG' => __( 'Paraguayan guaran&iacute;', 'woocommerce' ),
-					'QAR' => __( 'Qatari riyal', 'woocommerce' ),
-					'RON' => __( 'Romanian leu', 'woocommerce' ),
-					'RSD' => __( 'Serbian dinar', 'woocommerce' ),
-					'RUB' => __( 'Russian ruble', 'woocommerce' ),
-					'RWF' => __( 'Rwandan franc', 'woocommerce' ),
-					'SAR' => __( 'Saudi riyal', 'woocommerce' ),
-					'SBD' => __( 'Solomon Islands dollar', 'woocommerce' ),
-					'SCR' => __( 'Seychellois rupee', 'woocommerce' ),
-					'SDG' => __( 'Sudanese pound', 'woocommerce' ),
-					'SEK' => __( 'Swedish krona', 'woocommerce' ),
-					'SGD' => __( 'Singapore dollar', 'woocommerce' ),
-					'SHP' => __( 'Saint Helena pound', 'woocommerce' ),
-					'SLL' => __( 'Sierra Leonean leone', 'woocommerce' ),
-					'SOS' => __( 'Somali shilling', 'woocommerce' ),
-					'SRD' => __( 'Surinamese dollar', 'woocommerce' ),
-					'SSP' => __( 'South Sudanese pound', 'woocommerce' ),
-					'STN' => __( 'S&atilde;o Tom&eacute; and Pr&iacute;ncipe dobra', 'woocommerce' ),
-					'SYP' => __( 'Syrian pound', 'woocommerce' ),
-					'SZL' => __( 'Swazi lilangeni', 'woocommerce' ),
-					'THB' => __( 'Thai baht', 'woocommerce' ),
-					'TJS' => __( 'Tajikistani somoni', 'woocommerce' ),
-					'TMT' => __( 'Turkmenistan manat', 'woocommerce' ),
-					'TND' => __( 'Tunisian dinar', 'woocommerce' ),
-					'TOP' => __( 'Tongan pa&#x2bb;anga', 'woocommerce' ),
-					'TRY' => __( 'Turkish lira', 'woocommerce' ),
-					'TTD' => __( 'Trinidad and Tobago dollar', 'woocommerce' ),
-					'TWD' => __( 'New Taiwan dollar', 'woocommerce' ),
-					'TZS' => __( 'Tanzanian shilling', 'woocommerce' ),
-					'UAH' => __( 'Ukrainian hryvnia', 'woocommerce' ),
-					'UGX' => __( 'Ugandan shilling', 'woocommerce' ),
-					'USD' => __( 'United States (US) dollar', 'woocommerce' ),
-					'UYU' => __( 'Uruguayan peso', 'woocommerce' ),
-					'UZS' => __( 'Uzbekistani som', 'woocommerce' ),
-					'VEF' => __( 'Venezuelan bol&iacute;var (2008–2018)', 'woocommerce' ),
-					'VES' => __( 'Venezuelan bol&iacute;var', 'woocommerce' ),
-					'VND' => __( 'Vietnamese &#x111;&#x1ed3;ng', 'woocommerce' ),
-					'VUV' => __( 'Vanuatu vatu', 'woocommerce' ),
-					'WST' => __( 'Samoan t&#x101;l&#x101;', 'woocommerce' ),
-					'XAF' => __( 'Central African CFA franc', 'woocommerce' ),
-					'XCD' => __( 'East Caribbean dollar', 'woocommerce' ),
-					'XOF' => __( 'West African CFA franc', 'woocommerce' ),
-					'XPF' => __( 'CFP franc', 'woocommerce' ),
-					'YER' => __( 'Yemeni rial', 'woocommerce' ),
-					'ZAR' => __( 'South African rand', 'woocommerce' ),
-					'ZMW' => __( 'Zambian kwacha', 'woocommerce' ),
-				)
-			)
+			/**
+			 * Filters the list of available currencies.
+			 *
+			 * @since 2.1.0
+			 * @param array $currencies Array of currency codes and names.
+			 */
+			apply_filters( 'woocommerce_currencies', include WC()->plugin_path() . '/i18n/currencies.php' )
 		);
 	}
 
@@ -1004,9 +862,14 @@ function wc_get_image_size( $image_size ) {
  * Queue some JavaScript code to be output in the footer.
  *
  * @param string $code Code.
+ * @return void
+ *
+ * @deprecated 10.4.0 Use wp_add_inline_script() instead.
  */
 function wc_enqueue_js( $code ) {
 	global $wc_queued_js;
+
+	wc_deprecated_function( 'wc_enqueue_js', '10.4.0', 'wp_add_inline_script' );
 
 	if ( empty( $wc_queued_js ) ) {
 		$wc_queued_js = '';
@@ -1017,6 +880,8 @@ function wc_enqueue_js( $code ) {
 
 /**
  * Output any queued javascript code in the footer.
+ *
+ * @return void
  */
 function wc_print_js() {
 	global $wc_queued_js;
@@ -1049,6 +914,7 @@ function wc_print_js() {
  * @param  integer $expire Expiry of the cookie.
  * @param  bool    $secure Whether the cookie should be served only over https.
  * @param  bool    $httponly Whether the cookie is only accessible over HTTP, not scripting languages like JavaScript. @since 3.6.0.
+ * @return void
  */
 function wc_setcookie( $name, $value, $expire = 0, $secure = false, $httponly = false ) {
 	/**
@@ -1111,30 +977,6 @@ function wc_setcookie( $name, $value, $expire = 0, $secure = false, $httponly = 
 }
 
 /**
- * Get the URL to the WooCommerce Legacy REST API.
- *
- * Note that as of WooCommerce 9.0 the WooCommerce Legacy REST API has been moved to a dedicated extension,
- * and the implementation of its root endpoint in WooCommerce core is now just a stub that will always return an error.
- * See the setup_legacy_api_stub method in includes/class-woocommerce.php and:
- * https://developer.woocommerce.com/2023/10/03/the-legacy-rest-api-will-move-to-a-dedicated-extension-in-woocommerce-9-0/
- *
- * @deprecated 9.0.0 The Legacy REST API has been removed from WooCommerce core.
- *
- * @since 2.1
- * @param string $path an endpoint to include in the URL.
- * @return string the URL.
- */
-function get_woocommerce_api_url( $path ) {
-	$url = get_home_url( null, 'wc-api/v3/', is_ssl() ? 'https' : 'http' );
-
-	if ( ! empty( $path ) && is_string( $path ) ) {
-		$url .= ltrim( $path, '/' );
-	}
-
-	return $url;
-}
-
-/**
  * Recursively get page children.
  *
  * @param  int $page_id Page ID.
@@ -1162,6 +1004,8 @@ function wc_get_page_children( $page_id ) {
 
 /**
  * Flushes rewrite rules when the shop page (or it's children) gets saved.
+ *
+ * @return void
  */
 function flush_rewrite_rules_on_shop_page_save() {
 	$screen    = get_current_screen();
@@ -1307,6 +1151,50 @@ function wc_get_base_location() {
 }
 
 /**
+ * Uses geolocation to get the customer country and state only if they are valid values.
+ *
+ * @since 9.5.0
+ * @param array $fallback Fallback location.
+ * @return array
+ */
+function wc_get_customer_geolocation( $fallback = array(
+	'country' => '',
+	'state'   => '',
+) ) {
+	$ua = wc_get_user_agent();
+
+	// Exclude common bots from geolocation by user agent.
+	if ( stripos( $ua, 'bot' ) !== false || stripos( $ua, 'spider' ) !== false || stripos( $ua, 'crawl' ) !== false ) {
+		return $fallback;
+	}
+
+	$geolocation = WC_Geolocation::geolocate_ip( '', true, false );
+
+	if ( empty( $geolocation['country'] ) ) {
+		return $fallback;
+	}
+
+	// Ensure geolocation is valid.
+	$allowed_countries = WC()->countries->get_allowed_countries();
+
+	if ( ! isset( $allowed_countries[ $geolocation['country'] ] ) ) {
+		return $fallback;
+	}
+
+	$allowed_states = WC()->countries->get_allowed_country_states();
+	$country_states = $allowed_states[ $geolocation['country'] ] ?? array();
+
+	if ( $country_states && ! isset( $country_states[ $geolocation['state'] ] ) ) {
+		$geolocation['state'] = '';
+	}
+
+	return array(
+		'country' => $geolocation['country'],
+		'state'   => $geolocation['state'],
+	);
+}
+
+/**
  * Get the customer's default location.
  *
  * Filtered, and set to base location or left blank. If cache-busting,
@@ -1317,32 +1205,46 @@ function wc_get_base_location() {
  */
 function wc_get_customer_default_location() {
 	$set_default_location_to = get_option( 'woocommerce_default_customer_address', 'base' );
-	$default_location        = '' === $set_default_location_to ? '' : get_option( 'woocommerce_default_country', 'US:CA' );
-	$location                = wc_format_country_state_string( apply_filters( 'woocommerce_customer_default_location', $default_location ) );
 
-	// Geolocation takes priority if used and if geolocation is possible.
-	if ( 'geolocation' === $set_default_location_to || 'geolocation_ajax' === $set_default_location_to ) {
-		$ua = wc_get_user_agent();
-
-		// Exclude common bots from geolocation by user agent.
-		if ( ! stristr( $ua, 'bot' ) && ! stristr( $ua, 'spider' ) && ! stristr( $ua, 'crawl' ) ) {
-			$geolocation = WC_Geolocation::geolocate_ip( '', true, false );
-
-			if ( ! empty( $geolocation['country'] ) ) {
-				$location = $geolocation;
-			}
-		}
+	// Unless the location should be blank, use the base location as the default.
+	if ( '' !== $set_default_location_to ) {
+		$default_location_string = get_option( 'woocommerce_default_country', 'US:CA' );
 	}
 
-	// Once we have a location, ensure it's valid, otherwise fallback to a valid location.
-	$allowed_country_codes = WC()->countries->get_allowed_countries();
+	$default_location = wc_format_country_state_string(
+		/**
+		 * Filter the customer default location before geolocation.
+		 *
+		 * @since 2.3.0
+		 * @param string $default_location_string The default location.
+		 * @return string
+		 */
+		apply_filters( 'woocommerce_customer_default_location', $default_location_string ?? '' )
+	);
 
-	if ( ! empty( $location['country'] ) && ! array_key_exists( $location['country'], $allowed_country_codes ) ) {
-		$location['country'] = current( array_keys( $allowed_country_codes ) );
-		$location['state']   = '';
+	// Ensure defaults are valid.
+	$allowed_countries = WC()->countries->get_allowed_countries();
+
+	if ( ! in_array( $default_location['country'], array_keys( $allowed_countries ), true ) ) {
+		$default_location = array(
+			'country' => '',
+			'state'   => '',
+		);
 	}
 
-	return apply_filters( 'woocommerce_customer_default_location_array', $location );
+	// Geolocation takes priority if geolocation is possible.
+	if ( in_array( $set_default_location_to, array( 'geolocation', 'geolocation_ajax' ), true ) ) {
+		$default_location = wc_get_customer_geolocation( $default_location );
+	}
+
+	/**
+	 * Filter the customer default location after geolocation.
+	 *
+	 * @since 2.3.0
+	 * @param array $customer_location The customer location with keys 'country' and 'state'.
+	 * @return array
+	 */
+	return apply_filters( 'woocommerce_customer_default_location_array', $default_location );
 }
 
 /**
@@ -1359,14 +1261,26 @@ function wc_get_user_agent() {
  * Generate a rand hash.
  *
  * @since  2.4.0
+ * @param  string $prefix Prefix for the hash.
+ * @param  ?int   $max_length Maximum length of the hash. Excludes the prefix.
  * @return string
  */
-function wc_rand_hash() {
-	if ( ! function_exists( 'openssl_random_pseudo_bytes' ) ) {
-		return sha1( wp_rand() );
+function wc_rand_hash( $prefix = '', $max_length = null ) {
+	try {
+		$random = bin2hex( random_bytes( 20 ) );
+	} catch ( Exception $e ) {
+		if ( function_exists( 'wp_fast_hash' ) ) {
+			$random = bin2hex( substr( wp_fast_hash( wp_rand() ), -20 ) );
+		} else {
+			$random = bin2hex( substr( sha1( wp_rand() ), -20 ) );
+		}
 	}
 
-	return bin2hex( openssl_random_pseudo_bytes( 20 ) ); // @codingStandardsIgnoreLine
+	if ( $max_length && $max_length > 0 ) {
+		$random = substr( $random, 0, $max_length );
+	}
+
+	return $prefix . $random;
 }
 
 /**
@@ -1452,6 +1366,7 @@ function wc_array_cartesian( $input ) {
  * @since 2.5.0
  * @param string $type Types: start (default), commit, rollback.
  * @param bool   $force use of transactions.
+ * @return void
  */
 function wc_transaction_query( $type = 'start', $force = false ) {
 	global $wpdb;
@@ -1484,10 +1399,11 @@ function wc_transaction_query( $type = 'start', $force = false ) {
  * @return string Url to cart page
  */
 function wc_get_cart_url() {
-	if ( is_cart() && isset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] ) ) {
-		$protocol    = is_ssl() ? 'https' : 'http';
-		$current_url = esc_url_raw( $protocol . '://' . wp_unslash( $_SERVER['HTTP_HOST'] ) . wp_unslash( $_SERVER['REQUEST_URI'] ) );
-		$cart_url    = remove_query_arg( array( 'remove_item', 'add-to-cart', 'added-to-cart', 'order_again', '_wpnonce' ), $current_url );
+	global $post;
+
+	// We don't use is_cart() here because that also checks for a defined constant. We are only interested in the page.
+	if ( CartCheckoutUtils::is_cart_page() ) {
+		$cart_url = get_permalink( $post->ID );
 	} else {
 		$cart_url = wc_get_page_permalink( 'cart' );
 	}
@@ -1525,6 +1441,7 @@ function wc_get_checkout_url() {
  *
  * @since 1.5.7
  * @param string|object $shipping_method class name (string) or a class object.
+ * @return void
  */
 function woocommerce_register_shipping_method( $shipping_method ) {
 	WC()->shipping()->register_shipping_method( $shipping_method );
@@ -1583,9 +1500,27 @@ function wc_get_credit_card_type_label( $type ) {
  *
  * @param string $label Title of the page to return to.
  * @param string $url   URL of the page to return to.
+ * @return void
  */
 function wc_back_link( $label, $url ) {
 	echo '<small class="wc-admin-breadcrumb"><a href="' . esc_url( $url ) . '" aria-label="' . esc_attr( $label ) . '">&#x2934;&#xfe0e;</a></small>';
+}
+
+/**
+ * Outputs a header with "back" link so admin screens can easily jump back a page.
+ *
+ * @param string $title Title of the current page.
+ * @param string $label Label of the page to return to.
+ * @param string $url   URL of the page to return to.
+ * @return void
+ */
+function wc_back_header( $title, $label, $url ) {
+	$arrow = is_rtl() ? 'dashicons-arrow-right-alt2' : 'dashicons-arrow-left-alt2';
+
+	echo '<h2 class="wc-admin-header">';
+	echo '<small><a href="' . esc_url( $url ) . '" aria-label="' . esc_attr( $label ) . '"><span class="dashicons ' . esc_attr( $arrow ) . '" aria-hidden="true"></span></a></small>';
+	echo esc_html( $title );
+	echo '</h2>';
 }
 
 /**
@@ -1713,39 +1648,58 @@ function wc_postcode_location_matcher( $postcode, $objects, $object_id_key, $obj
 function wc_get_shipping_method_count( $include_legacy = false, $enabled_only = false ) {
 	global $wpdb;
 
-	$transient_name    = $include_legacy ? 'wc_shipping_method_count_legacy' : 'wc_shipping_method_count';
+	$transient_name    = 'wc_shipping_method_count';
 	$transient_version = WC_Cache_Helper::get_transient_version( 'shipping' );
 	$transient_value   = get_transient( $transient_name );
+	$counts            = array(
+		'legacy'   => 0,
+		'enabled'  => 0,
+		'disabled' => 0,
+	);
 
-	if ( isset( $transient_value['value'], $transient_value['version'] ) && $transient_value['version'] === $transient_version ) {
-		return absint( $transient_value['value'] );
+	if ( ! isset( $transient_value['legacy'], $transient_value['enabled'], $transient_value['disabled'], $transient_value['version'] ) || $transient_value['version'] !== $transient_version ) {
+		// Count activated methods that don't support shipping zones if $include_legacy is true.
+		$methods    = WC()->shipping()->get_shipping_methods();
+		$method_ids = array();
+
+		foreach ( $methods as $method ) {
+			$method_ids[] = $method->id;
+
+			if ( isset( $method->enabled ) && 'yes' === $method->enabled && ! $method->supports( 'shipping-zones' ) ) {
+				++$counts['legacy'];
+			}
+		}
+
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+		$counts['enabled']  = absint( $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_shipping_zone_methods WHERE is_enabled=1 AND method_id IN ('" . implode( "','", array_map( 'esc_sql', $method_ids ) ) . "')" ) );
+		$counts['disabled'] = absint( $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_shipping_zone_methods WHERE is_enabled=0 AND method_id IN ('" . implode( "','", array_map( 'esc_sql', $method_ids ) ) . "')" ) );
+		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+
+		$transient_value = array(
+			'version'  => $transient_version,
+			'legacy'   => $counts['legacy'],
+			'enabled'  => $counts['enabled'],
+			'disabled' => $counts['disabled'],
+		);
+
+		set_transient( $transient_name, $transient_value, DAY_IN_SECONDS * 30 );
+	} else {
+		$counts = $transient_value;
 	}
 
+	$return = 0;
+
 	if ( $enabled_only ) {
-		$method_count = absint( $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_shipping_zone_methods WHERE is_enabled=1" ) );
+		$return = $counts['enabled'];
 	} else {
-		$method_count = absint( $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_shipping_zone_methods" ) );
+		$return = $counts['enabled'] + $counts['disabled'];
 	}
 
 	if ( $include_legacy ) {
-		// Count activated methods that don't support shipping zones.
-		$methods = WC()->shipping()->get_shipping_methods();
-
-		foreach ( $methods as $method ) {
-			if ( isset( $method->enabled ) && 'yes' === $method->enabled && ! $method->supports( 'shipping-zones' ) ) {
-				++$method_count;
-			}
-		}
+		$return += $counts['legacy'];
 	}
 
-	$transient_value = array(
-		'version' => $transient_version,
-		'value'   => $method_count,
-	);
-
-	set_transient( $transient_name, $transient_value, DAY_IN_SECONDS * 30 );
-
-	return $method_count;
+	return $return;
 }
 
 /**
@@ -1753,6 +1707,7 @@ function wc_get_shipping_method_count( $include_legacy = false, $enabled_only = 
  *
  * @since 2.6.0
  * @param int $limit Time limit.
+ * @return void
  */
 function wc_set_time_limit( $limit = 0 ) {
 	if ( function_exists( 'set_time_limit' ) && false === strpos( ini_get( 'disable_functions' ), 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) { // phpcs:ignore PHPCompatibility.IniDirectives.RemovedIniDirectives.safe_modeDeprecatedRemoved
@@ -1764,6 +1719,7 @@ function wc_set_time_limit( $limit = 0 ) {
  * Wrapper for nocache_headers which also disables page caching.
  *
  * @since 3.2.4
+ * @return void
  */
 function wc_nocache_headers() {
 	WC_Cache_Helper::set_nocache_constants();
@@ -1833,7 +1789,7 @@ function wc_uasort_comparison( $a, $b ) {
 }
 
 /**
- * Sort values based on ascii, usefull for special chars in strings.
+ * Sort values based on ascii, useful for special chars in strings.
  *
  * @param string $a First value.
  * @param string $b Second value.
@@ -1953,9 +1909,11 @@ function wc_add_number_precision( ?float $value, bool $round = true ) {
 		return 0.0;
 	}
 
-	$cent_precision = pow( 10, wc_get_price_decimals() );
-	$value          = $value * $cent_precision;
-	return $round ? NumberUtil::round( $value, wc_get_rounding_precision() - wc_get_price_decimals() ) : $value;
+	// Fallback to standard rounding precision in order to cover rounding changes in PHP 8.4.
+	$result          = $value * pow( 10, wc_get_price_decimals() );
+	$round_precision = $round ? wc_get_rounding_precision() - wc_get_price_decimals() : wc_get_rounding_precision();
+
+	return NumberUtil::round( $result, $round_precision );
 }
 
 /**
@@ -1984,7 +1942,7 @@ function wc_remove_number_precision( $value ) {
  */
 function wc_add_number_precision_deep( $value, $round = true ) {
 	if ( ! is_array( $value ) ) {
-		return wc_add_number_precision( $value, $round );
+		return wc_add_number_precision( (float) $value, $round );
 	}
 
 	foreach ( $value as $key => $sub_value ) {
@@ -2059,6 +2017,7 @@ function wc_get_logger() {
  * Trigger logging cleanup using the logging class.
  *
  * @since 3.4.0
+ * @return void
  */
 function wc_cleanup_logs() {
 	$logger = wc_get_logger();
@@ -2205,6 +2164,7 @@ function wc_get_permalink_structure() {
  * Switch WooCommerce to site language.
  *
  * @since 3.1.0
+ * @return void
  */
 function wc_switch_to_site_locale() {
 	global $wp_locale_switcher;
@@ -2224,6 +2184,7 @@ function wc_switch_to_site_locale() {
  * Switch WooCommerce language to original.
  *
  * @since 3.1.0
+ * @return void
  */
 function wc_restore_locale() {
 	global $wp_locale_switcher;
@@ -2442,6 +2403,7 @@ function wc_is_wp_default_theme_active() {
  * Cleans up session data - cron callback.
  *
  * @since 3.3.0
+ * @return void
  */
 function wc_cleanup_session_data() {
 	$session_class = apply_filters( 'woocommerce_session_handler', 'WC_Session_Handler' );
@@ -2524,7 +2486,7 @@ function wc_selected( $value, $options ) {
  * Retrieves the MySQL server version. Based on $wpdb.
  *
  * @since 3.4.1
- * @return array Vesion information.
+ * @return array Version information.
  */
 function wc_get_server_database_version() {
 	global $wpdb;
@@ -2536,8 +2498,7 @@ function wc_get_server_database_version() {
 		);
 	}
 
-	// phpcs:ignore WordPress.DB.RestrictedFunctions
-	$server_info = mysqli_get_server_info( $wpdb->dbh );
+	$server_info = $wpdb->get_var( 'SELECT VERSION()' );
 
 	return array(
 		'string' => $server_info,
@@ -2595,4 +2556,125 @@ function wc_cache_get_multiple( $keys, $group = '', $force = false ) {
 		$values[ $key ] = wp_cache_get( $key, $group, $force );
 	}
 	return $values;
+}
+
+/**
+ * Delete multiple transients in a single operation.
+ *
+ * IMPORTANT: This is a private function (internal use ONLY).
+ *
+ * This function efficiently deletes multiple transients at once, using a direct
+ * database query when possible for better performance.
+ *
+ * @internal
+ *
+ * @since 9.8.0
+ * @param array $transients Array of transient names to delete (without the '_transient_' prefix).
+ * @return bool True on success, false on failure.
+ */
+function _wc_delete_transients( $transients ) {
+	global $wpdb;
+
+	if ( empty( $transients ) || ! is_array( $transients ) ) {
+		return false;
+	}
+
+	// If using external object cache, delete each transient individually.
+	if ( wp_using_ext_object_cache() ) {
+		foreach ( $transients as $transient ) {
+			delete_transient( $transient );
+		}
+		return true;
+	} else {
+		// For database storage, create a list of transient option names.
+		$transient_names = array();
+		foreach ( $transients as $transient ) {
+			$transient_names[] = '_transient_' . $transient;
+			$transient_names[] = '_transient_timeout_' . $transient;
+		}
+
+		// Limit the number of items in a single query to avoid exceeding database query parameter limits.
+		if ( count( $transients ) > 199 ) {
+			// Process in smaller chunks to reduce memory usage.
+			$chunks  = array_chunk( $transients, 100 );
+			$success = true;
+
+			foreach ( $chunks as $chunk ) {
+				$result = _wc_delete_transients( $chunk );
+				if ( ! $result ) {
+					$success = false;
+				}
+				// Force garbage collection after each chunk to free memory.
+				gc_collect_cycles();
+			}
+
+			return $success;
+		}
+
+		try {
+			// Before deleting, get the list of options to clear from cache.
+			// Since we already have the option names we could skip this step but this mirrors WP's delete_option functionality.
+			// It also allows us to only delete the options we know exist.
+			$options_to_clear = array();
+			if ( ! wp_installing() ) {
+				$options_to_clear = $wpdb->get_col(
+					$wpdb->prepare(
+						'SELECT option_name FROM ' . $wpdb->options . ' WHERE option_name IN ( ' . implode( ', ', array_fill( 0, count( $transient_names ), '%s' ) ) . ' )',
+						$transient_names
+					)
+				);
+			}
+
+			if ( empty( $options_to_clear ) ) {
+				// If there are no options to clear, return true immediately.
+				return true;
+			}
+
+			// Use a single query for better performance.
+			$wpdb->query(
+				$wpdb->prepare(
+					'DELETE FROM ' . $wpdb->options . ' WHERE option_name IN ( ' . implode( ', ', array_fill( 0, count( $options_to_clear ), '%s' ) ) . ' )',
+					$options_to_clear
+				)
+			);
+
+			// Lets clear our options data from the cache.
+			// We can batch delete if available, introduced in WP 6.0.0.
+			if ( ! wp_installing() ) {
+				if ( function_exists( 'wp_cache_delete_multiple' ) ) {
+					wp_cache_delete_multiple( $options_to_clear, 'options' );
+				} else {
+					foreach ( $options_to_clear as $option_name ) {
+						wp_cache_delete( $option_name, 'options' );
+					}
+				}
+
+				// Also update alloptions cache if needed.
+				// This is required to prevent phantom transients from being returned.
+				$alloptions         = wp_load_alloptions( true );
+				$updated_alloptions = false;
+
+				if ( is_array( $alloptions ) ) {
+					foreach ( $options_to_clear as $option_name ) {
+						if ( isset( $alloptions[ $option_name ] ) ) {
+							unset( $alloptions[ $option_name ] );
+							$updated_alloptions = true;
+						}
+					}
+
+					if ( $updated_alloptions ) {
+						wp_cache_set( 'alloptions', $alloptions, 'options' );
+					}
+				}
+			}
+
+			return true;
+		} catch ( Exception $e ) {
+			wc_get_logger()->error(
+				sprintf( 'Exception when deleting transients: %s', $e->getMessage() ),
+				array( 'source' => '_wc_delete_transients' )
+			);
+			return false;
+		}
+	}
 }

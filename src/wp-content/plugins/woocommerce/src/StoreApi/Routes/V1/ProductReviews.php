@@ -52,6 +52,7 @@ class ProductReviews extends AbstractRoute {
 				'callback'            => [ $this, 'get_response' ],
 				'permission_callback' => '__return_true',
 				'args'                => $this->get_collection_params(),
+				'allow_batch'         => [ 'v1' => true ],
 			],
 			'schema' => [ $this->schema, 'get_public_item_schema' ],
 		];
@@ -183,10 +184,10 @@ class ProductReviews extends AbstractRoute {
 		);
 
 		$params['per_page'] = array(
-			'description'       => __( 'Maximum number of items to be returned in result set. Defaults to no limit if left blank.', 'woocommerce' ),
+			'description'       => __( 'Maximum number of items to be returned in result set.', 'woocommerce' ),
 			'type'              => 'integer',
 			'default'           => 10,
-			'minimum'           => 0,
+			'minimum'           => 1,
 			'maximum'           => 100,
 			'sanitize_callback' => 'absint',
 			'validate_callback' => 'rest_validate_request_arg',

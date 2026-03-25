@@ -3,11 +3,14 @@
  * WooCommerce Product Block Editor
  */
 
+declare(strict_types = 1);
+
 namespace Automattic\WooCommerce\Admin\Features\ProductBlockEditor;
 
 use Automattic\WooCommerce\Admin\Features\Features;
 use Automattic\WooCommerce\Admin\Features\ProductBlockEditor\ProductTemplate;
 use Automattic\WooCommerce\Admin\PageController;
+use Automattic\WooCommerce\Enums\ProductType;
 use Automattic\WooCommerce\LayoutTemplates\LayoutTemplateRegistry;
 
 use Automattic\WooCommerce\Internal\Features\ProductBlockEditor\ProductTemplates\SimpleProductTemplate;
@@ -29,7 +32,7 @@ class Init {
 	 *
 	 * @var array
 	 */
-	private $supported_product_types = array( 'simple' );
+	private $supported_product_types = array( ProductType::SIMPLE );
 
 	/**
 	 * Registered product templates.
@@ -49,9 +52,13 @@ class Init {
 	 * Constructor
 	 */
 	public function __construct() {
-		array_push( $this->supported_product_types, 'variable' );
-		array_push( $this->supported_product_types, 'external' );
-		array_push( $this->supported_product_types, 'grouped' );
+		if ( ! is_admin() && ! WC()->is_rest_api_request() ) {
+			return;
+		}
+
+		array_push( $this->supported_product_types, ProductType::VARIABLE );
+		array_push( $this->supported_product_types, ProductType::EXTERNAL );
+		array_push( $this->supported_product_types, ProductType::GROUPED );
 
 		$this->redirection_controller = new RedirectionController();
 
@@ -131,12 +138,12 @@ class Init {
 		wp_enqueue_script( $script_handle );
 		wp_add_inline_script(
 			$script_handle,
-			'var productBlockEditorSettings = productBlockEditorSettings || ' . wp_json_encode( $editor_settings ) . ';',
+			'var productBlockEditorSettings = productBlockEditorSettings || ' . wp_json_encode( $editor_settings, JSON_HEX_TAG | JSON_UNESCAPED_SLASHES ) . ';',
 			'before'
 		);
 		wp_add_inline_script(
 			$script_handle,
-			sprintf( 'wp.blocks.setCategories( %s );', wp_json_encode( $editor_settings['blockCategories'] ) ),
+			sprintf( 'wp.blocks.setCategories( %s );', wp_json_encode( $editor_settings['blockCategories'], JSON_HEX_TAG | JSON_UNESCAPED_SLASHES ) ),
 			'before'
 		);
 		wp_tinymce_inline_scripts();
@@ -154,7 +161,7 @@ class Init {
 			return;
 		}
 		wp_enqueue_style( 'wc-product-editor' );
-		wp_enqueue_style( 'wp-edit-blocks' );
+		wp_enqueue_style( 'wp-editor' );
 		wp_enqueue_style( 'wp-format-library' );
 		wp_enqueue_editor();
 		/**
@@ -172,7 +179,7 @@ class Init {
 		if ( ! PageController::is_admin_page() ) {
 			return;
 		}
-		// Dequeing this to avoid conflicts, until we remove the 'woocommerce-page' class.
+		// Dequeuing this to avoid conflicts, until we remove the 'woocommerce-page' class.
 		wp_dequeue_style( 'woocommerce-blocktheme' );
 	}
 
@@ -190,7 +197,7 @@ class Init {
 			return $link;
 		}
 
-		if ( $product->get_type() === 'simple' ) {
+		if ( $product->get_type() === ProductType::SIMPLE ) {
 			return admin_url( 'admin.php?page=wc-admin&path=/product/' . $product->get_id() );
 		}
 
@@ -243,7 +250,7 @@ class Init {
 
 			wp_add_inline_script(
 				'wp-blocks',
-				'wp.blocks && wp.blocks.unstable__bootstrapServerSideBlockDefinitions && wp.blocks.unstable__bootstrapServerSideBlockDefinitions(' . wp_json_encode( get_block_editor_server_block_settings() ) . ');'
+				'wp.blocks && wp.blocks.unstable__bootstrapServerSideBlockDefinitions && wp.blocks.unstable__bootstrapServerSideBlockDefinitions(' . wp_json_encode( get_block_editor_server_block_settings(), JSON_HEX_TAG | JSON_UNESCAPED_SLASHES ) . ');'
 			);
 		}
 	}
@@ -280,7 +287,7 @@ class Init {
 				'icon'               => 'shipping',
 				'layout_template_id' => 'simple-product',
 				'product_data'       => array(
-					'type' => 'simple',
+					'type' => ProductType::SIMPLE,
 				),
 			)
 		);
@@ -293,7 +300,7 @@ class Init {
 				'icon'               => 'group',
 				'layout_template_id' => 'simple-product',
 				'product_data'       => array(
-					'type' => 'grouped',
+					'type' => ProductType::GROUPED,
 				),
 			)
 		);
@@ -306,7 +313,7 @@ class Init {
 				'icon'               => 'link',
 				'layout_template_id' => 'simple-product',
 				'product_data'       => array(
-					'type' => 'external',
+					'type' => ProductType::EXTERNAL,
 				),
 			)
 		);

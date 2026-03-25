@@ -5,7 +5,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
 			tooltip.innerHTML += ' [?]';
 
 			const tooltipTextbox = document.createElement( 'span' );
-			tooltipTextbox.classList.add( 'jetpack-sso-invitation-tooltip', 'jetpack-sso-th-tooltip' );
+			tooltipTextbox.classList.add( 'jetpack-sso-invitation-tooltip' );
 
 			const tooltipString = window.Jetpack_SSOTooltip.tooltipString;
 			tooltipTextbox.innerHTML += tooltipString;
@@ -28,7 +28,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
 			 */
 			function removeTooltip() {
 				// Only remove tooltip if the element isn't currently active.
-				if ( document.activeElement === tooltip ) {
+				if ( tooltip.ownerDocument.activeElement === tooltip ) {
 					return;
 				}
 				tooltip.removeChild( tooltipTextbox );
@@ -56,7 +56,7 @@ document.addEventListener( 'DOMContentLoaded', function () {
 	 * @param {Event} event - Triggering event.
 	 */
 	function removeSSOInvitationTooltip( event ) {
-		if ( document.activeElement === event.target ) {
+		if ( event.target.ownerDocument.activeElement === event.target ) {
 			return;
 		}
 		this.querySelector( '.jetpack-sso-invitation-tooltip' ).style.display = 'none';

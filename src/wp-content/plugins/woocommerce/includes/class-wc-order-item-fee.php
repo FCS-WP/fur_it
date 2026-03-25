@@ -10,6 +10,7 @@
  * @since   3.0.0
  */
 
+use Automattic\WooCommerce\Enums\ProductTaxStatus;
 use Automattic\WooCommerce\Utilities\NumberUtil;
 
 defined( 'ABSPATH' ) || exit;
@@ -18,6 +19,21 @@ defined( 'ABSPATH' ) || exit;
  * Order item fee.
  */
 class WC_Order_Item_Fee extends WC_Order_Item {
+	/**
+	 * Legacy fee data.
+	 *
+	 * @deprecated 4.4.0 For legacy actions.
+	 * @var object
+	 */
+	public $legacy_fee = '';
+
+	/**
+	 * Legacy fee key.
+	 *
+	 * @deprecated 4.4.0 For legacy actions.
+	 * @var string
+	 */
+	public $legacy_fee_key = '';
 
 	/**
 	 * Order Data array. This is the core order data exposed in APIs since 3.0.0.
@@ -27,7 +43,7 @@ class WC_Order_Item_Fee extends WC_Order_Item {
 	 */
 	protected $extra_data = array(
 		'tax_class'  => '',
-		'tax_status' => 'taxable',
+		'tax_status' => ProductTaxStatus::TAXABLE,
 		'amount'     => '',
 		'total'      => '',
 		'total_tax'  => '',
@@ -52,7 +68,7 @@ class WC_Order_Item_Fee extends WC_Order_Item {
 			if ( 0 > $item->get_total() ) {
 				continue;
 			}
-			if ( 'taxable' !== $item->get_tax_status() ) {
+			if ( ProductTaxStatus::TAXABLE !== $item->get_tax_status() ) {
 				$costs['non-taxable'] += $item->get_total();
 			} elseif ( 'inherit' === $item->get_tax_class() ) {
 				$inherit_class            = reset( $order_item_tax_classes );
@@ -141,10 +157,10 @@ class WC_Order_Item_Fee extends WC_Order_Item {
 	 * @param string $value Tax status.
 	 */
 	public function set_tax_status( $value ) {
-		if ( in_array( $value, array( 'taxable', 'none' ), true ) ) {
+		if ( in_array( $value, array( ProductTaxStatus::TAXABLE, ProductTaxStatus::NONE ), true ) ) {
 			$this->set_prop( 'tax_status', $value );
 		} else {
-			$this->set_prop( 'tax_status', 'taxable' );
+			$this->set_prop( 'tax_status', ProductTaxStatus::TAXABLE );
 		}
 	}
 
@@ -171,6 +187,8 @@ class WC_Order_Item_Fee extends WC_Order_Item {
 	 *
 	 * This is an array of tax ID keys with total amount values.
 	 *
+	 * @since 10.5.0 Handles legacy scalar tax values by converting to arrays.
+	 *
 	 * @param array $raw_tax_data Raw tax data.
 	 */
 	public function set_taxes( $raw_tax_data ) {
@@ -179,7 +197,29 @@ class WC_Order_Item_Fee extends WC_Order_Item {
 			'total' => array(),
 		);
 		if ( ! empty( $raw_tax_data['total'] ) ) {
-			$tax_data['total'] = array_map( 'wc_format_decimal', $raw_tax_data['total'] );
+			$total = $raw_tax_data['total'];
+
+			// Handle legacy data where total might be a float/string instead of an array.
+			if ( ! is_array( $total ) ) {
+				$order = $this->get_order();
+				$total = $this->convert_legacy_tax_value_to_array( $total, $order );
+
+				// Log legacy data format for debugging purposes.
+				wc_get_logger()->warning(
+					sprintf(
+						/* translators: %d: order item ID */
+						__( 'Order item #%d contains legacy tax data format. Tax rate ID information is unavailable.', 'woocommerce' ),
+						$this->get_id()
+					),
+					array(
+						'source'        => 'woocommerce-order-item-fee',
+						'order_item_id' => $this->get_id(),
+						'order_id'      => $order ? $order->get_id() : 0,
+					)
+				);
+			}
+
+			$tax_data['total'] = array_map( 'wc_format_decimal', $total );
 		}
 		$this->set_prop( 'taxes', $tax_data );
 

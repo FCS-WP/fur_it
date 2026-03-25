@@ -1,0 +1,197 @@
+// ============================================================
+// Zippy Form Builder
+// _form-builder.scss
+// ============================================================
+
+.zippy-form-wrap {
+    width: 100%;
+}
+
+// ── Notices ──────────────────────────────────────────────────
+.zippy-form-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+
+    ul { margin: 0; padding-left: 16px; }
+    li { margin-bottom: 4px; }
+
+    &--success {
+        background: #f0faf0;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+    }
+    &--error {
+        background: #fff5f5;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+    }
+}
+
+// ── Form layout ──────────────────────────────────────────────
+.zippy-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.zippy-form__fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 16px;
+    width: 100%;
+}
+
+// ── Field ────────────────────────────────────────────────────
+.zippy-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 100%;   // default full width
+    min-width: 0;
+
+    // Width overrides via inline style (set by shortcode)
+    // e.g. style="flex:0 0 50%;max-width:50%;"
+
+    @media (max-width: 549px) {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+    }
+
+    label {
+        font-weight: 600;
+        color: $primary-color;
+    }
+
+    input:not([type="checkbox"]),
+    textarea,
+    select {
+        width: 100%;
+        margin-bottom: 0;
+        padding: 11px 14px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        color: $primary-color;
+        background: #fff;
+        font-family: inherit;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        box-sizing: border-box;
+
+        &::placeholder { color: #bbb; }
+
+        &:focus {
+            outline: none;
+            border-color: $fs-color-success;
+            box-shadow: 0 0 0 3px rgba(191, 172, 145, 0.15);
+        }
+    }
+
+    textarea { resize: vertical; min-height: 100px; }
+
+    select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23999'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+    // Error state
+    &.has-error {
+        input:not([type="checkbox"]),
+        textarea,
+        select {
+            border-color: #e53935;
+            box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.08);
+        }
+    }
+}
+
+// ── Field error message ──────────────────────────────────────
+.zippy-field-error {
+    display: block;
+    font-size: 14px;
+    color: #e53935;
+    margin-top: 2px;
+}
+
+// ── Required star ────────────────────────────────────────────
+.zippy-form__required {
+    color: #e53935;
+    margin-left: 2px;
+}
+
+// ── Checkbox ─────────────────────────────────────────────────
+.zippy-form__checkbox-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    padding: 4px 0;
+
+    input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+}
+
+.zippy-form__checkbox-custom {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+
+    &::after {
+        content: '';
+        display: block;
+        width: 5px;
+        height: 9px;
+        border: 2px solid #fff;
+        border-top: none;
+        border-left: none;
+        transform: rotate(45deg) translate(-1px, -1px);
+        opacity: 0;
+        transition: opacity 0.15s;
+    }
+}
+
+input[type="checkbox"]:checked + .zippy-form__checkbox-custom {
+    background: $primary-color;
+    border-color: $primary-color;
+    &::after { opacity: 1; }
+}
+
+.zippy-form__checkbox-label {
+    color: $primary-color;
+    line-height: 1.5;
+}
+
+// ── Submit ───────────────────────────────────────────────────
+.zippy-form__submit {
+    margin-top: 20px;
+}
+
+.zippy-form__submit-btn {
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+    padding: 4px 36px;
+    background: $primary-color;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s ease, transform 0.1s ease;
+
+    &:hover   { background: $fs-color-success; transform: translateY(-1px); }
+    &:active  { transform: translateY(0); }
+    &:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+}
